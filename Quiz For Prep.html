@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Quiz</title>
+    <style>
+        /* Base Light Theme Variables */
+        :root { 
+            --primary: #0070d2; 
+            --primary-hover: #005aab;
+            --secondary: #6b7280;
+            --secondary-hover: #4b5563;
+            --bg: #f4f6f9; 
+            --text: #16325c; 
+            
+            --success: #04844b; 
+            --success-bg: #e6f4ea;
+            --error: #c23934; 
+            --error-bg: #fce8e6;
+            --status-text: #000000; 
+            
+            --warning: #d97706; 
+            --warning-hover: #b45309;
+            --danger: #b22b27;
+            --purple: #8b5cf6;
+            --purple-hover: #7c3aed;
+            
+            --card-bg: #ffffff;
+            --border: #d8dde6;
+            --option-hover: #f8fbfe;
+            --edit-bg: #fffbeb;
+            --edit-hover: #fef3c7;
+        }
+
+        /* Dark Theme Variables */
+        body.dark-theme {
+            --primary: #3b82f6; 
+            --primary-hover: #60a5fa;
+            --secondary: #4b5563;
+            --secondary-hover: #374151;
+            --bg: #121212; 
+            --text: #f3f4f6; 
+            
+            --success: #34d399; 
+            --success-bg: #064e3b; 
+            --error: #f87171; 
+            --error-bg: #7f1d1d; 
+            --status-text: #ffffff; 
+            
+            --warning: #fbbf24; 
+            --warning-hover: #f59e0b;
+            --danger: #ef4444;
+            --purple: #a78bfa;
+            --purple-hover: #8b5cf6;
+            
+            --card-bg: #1f2937;
+            --border: #374151;
+            --option-hover: #374151;
+            --edit-bg: #422006;
+            --edit-hover: #713f12;
+        }
+
+        * { box-sizing: border-box; }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            background: var(--bg); 
+            padding: 20px; 
+            line-height: 1.6; 
+            color: var(--text); 
+            margin: 0; 
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        /* Layout */
+        .header { display: flex; justify-content: flex-end; gap: 10px; max-width: 1000px; margin: 0 auto 20px auto; flex-wrap: wrap; align-items: center; }
+        .app-wrapper { display: flex; gap: 20px; max-width: 1000px; margin: 0 auto 40px auto; align-items: flex-start; }
+        .config-container { max-width: 800px; margin: 40px auto; }
+        
+        .card { 
+            background: var(--card-bg); 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); 
+            border: 1px solid var(--border);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* Sidebar / Navigation */
+        .sidebar { width: 280px; flex-shrink: 0; }
+        .sidebar h3 { margin-top: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border); font-size: 1.1em; transition: border-color 0.3s ease; }
+        .nav-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+        .nav-btn { 
+            width: 42px; height: 42px; 
+            border: 1px solid var(--border); 
+            background: var(--card-bg); 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            color: var(--text); 
+            display: flex; align-items: center; justify-content: center; 
+            transition: all 0.2s ease; 
+        }
+        .nav-btn:hover { background: var(--option-hover); }
+        .nav-btn.active { border: 2px solid var(--text); transform: scale(1.08); z-index: 2; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+        
+        .nav-btn.correct { background: var(--success-bg); color: var(--status-text); border-color: var(--success); }
+        .nav-btn.incorrect { background: var(--error-bg); color: var(--status-text); border-color: var(--error); }
+        .nav-btn.marked { background: var(--purple) !important; color: white !important; border-color: var(--purple-hover) !important; }
+        
+        /* Main Quiz Content */
+        .main-content { flex: 1; min-width: 0; }
+        .q-meta { margin-top: 0; color: var(--secondary); font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        .score-container { display: flex; align-items: center; gap: 8px; }
+        
+        .copy-btn {
+            background: transparent; border: none; cursor: pointer; font-size: 1.2em;
+            padding: 2px 6px; border-radius: 4px; color: inherit; transition: background 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .copy-btn:hover { background: rgba(128, 128, 128, 0.15); }
+
+        .q-text { font-size: 1.3em; margin-bottom: 25px; font-weight: 600; line-height: 1.4; }
+        .edit-badge { background: var(--warning); color: #000; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+        
+        input[type="text"] { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); font-size: 16px; }
+        textarea { width: 100%; height: 250px; margin: 20px 0; font-family: monospace; padding: 15px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; background: var(--card-bg); color: var(--text); transition: all 0.3s ease; }
+        
+        /* Buttons */
+        .button-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+        
+        button.action-btn { 
+            padding: 12px 24px; background: var(--primary); color: white; border: none; 
+            cursor: pointer; border-radius: 8px; font-weight: bold; font-size: 16px; 
+            transition: background 0.2s ease; flex: 1; 
+        }
+        button.action-btn:hover { background: var(--primary-hover); }
+        button.action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        button.btn-warning { background: var(--warning); flex: 0 1 auto; font-size: 14px; padding: 10px 18px; color: #000; }
+        button.btn-warning:hover { background: var(--warning-hover); }
+
+        button.btn-mark { background: var(--purple); flex: 0 1 auto; font-size: 14px; padding: 10px 18px; color: white; }
+        button.btn-mark:hover { background: var(--purple-hover); }
+        button.btn-mark.is-marked { background: transparent; border: 2px solid var(--purple); color: var(--purple); }
+        button.btn-mark.is-marked:hover { background: var(--option-hover); }
+
+        .top-btn { 
+            padding: 10px 20px; color: white; border: none; cursor: pointer; 
+            border-radius: 8px; font-weight: 600; transition: opacity 0.2s;
+        }
+        .top-btn:hover { opacity: 0.8; }
+        
+        .clear-btn { background: var(--danger); }
+        .restart-btn { background: var(--warning); color: #000; }
+        .export-btn { background: var(--success); color: var(--status-text); }
+        .theme-btn { background: var(--secondary); font-size: 1.1em; padding: 8px 16px; }
+
+        /* Sync Status Indicator */
+        .sync-status {
+            font-size: 14px; font-weight: bold; margin-right: 15px;
+            color: var(--secondary); display: flex; align-items: center; gap: 5px;
+        }
+        .sync-active { color: var(--warning); }
+        .sync-success { color: var(--success); }
+
+        .hidden { display: none !important; }
+        
+        /* Options */
+        .options-container { display: flex; flex-direction: column; gap: 10px; }
+        .option-label { 
+            display: flex; align-items: flex-start; padding: 15px 20px; 
+            border: 2px solid var(--border); cursor: pointer; border-radius: 8px; 
+            transition: all 0.2s ease; font-size: 1.05em; background: var(--card-bg);
+        }
+        .option-label input { margin-top: 4px; margin-right: 12px; transform: scale(1.2); cursor: pointer; }
+        .option-label:hover:not(.disabled) { border-color: var(--primary); background: var(--option-hover); }
+        
+        .correct { background: var(--success-bg) !important; border-color: var(--success) !important; color: var(--status-text) !important; }
+        .incorrect { background: var(--error-bg) !important; border-color: var(--error) !important; color: var(--status-text) !important; }
+        
+        .edit-mode-label { border-style: dashed; border-color: var(--warning); background: var(--edit-bg); }
+        .edit-mode-label:hover { background: var(--edit-hover); }
+
+        input:disabled { cursor: not-allowed; }
+        .option-label.disabled { cursor: not-allowed; opacity: 0.85; }
+
+        @media (min-width: 768px) {
+            button.action-btn { flex: none; min-width: 150px; }
+            .button-group { justify-content: flex-start; }
+        }
+
+        @media (max-width: 767px) {
+            .app-wrapper { flex-direction: column; }
+            .sidebar { width: 100%; order: -1; }
+            .nav-grid { max-height: 160px; overflow-y: auto; padding-right: 5px; }
+            .card { padding: 20px; }
+            .q-text { font-size: 1.15em; }
+            .header { justify-content: center; }
+            .button-group { flex-direction: row; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div id="syncIndicator" class="sync-status hidden">☁️ Cloud Synced</div>
+    <button id="themeToggleBtn" class="top-btn theme-btn" title="Toggle Theme">🌙</button>
+    <button id="reuploadBtn" class="top-btn theme-btn hidden" title="Upload New JSON" style="background: var(--primary);">📂 New JSON</button>
+    <button id="exportJsonBtn" class="top-btn export-btn hidden">Copy Clean JSON</button>
+    <button id="restartQuizBtn" class="top-btn restart-btn hidden">Restart Quiz</button>
+    <button id="clearCacheBtn" class="top-btn clear-btn hidden">Unlink Drive</button>
+</div>
+
+<div id="configScreen" class="config-container card">
+    <h2>Connect to Google Drive</h2>
+    <p>Paste your Google Apps Script Web App URL to load and sync your quiz data directly to the cloud.</p>
+    <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
+    <button id="loadBtn" class="action-btn">Load from Cloud</button>
+    <p id="loadingMsg" class="hidden" style="color: var(--primary); font-weight: bold; margin-top: 15px;">⏳ Communicating with Google Drive...</p>
+</div>
+
+<div id="jsonInputScreen" class="config-container card hidden">
+    <h2 id="jsonScreenTitle">Upload Quiz Data</h2>
+    <p id="jsonScreenDesc">Paste your JSON array of questions here:</p>
+    <textarea id="jsonInput" placeholder='[
+  {
+    "question": "What is the capital of France?",
+    "options": ["Berlin", "London", "Paris", "Rome"],
+    "correctAnswers": [2]
+  }
+]'></textarea>
+    <div class="button-group" style="margin-top: 0;">
+        <button id="saveNewJsonBtn" class="action-btn">Save to Cloud & Start</button>
+        <button id="cancelJsonBtn" class="action-btn btn-warning hidden">Cancel</button>
+    </div>
+</div>
+
+<div id="quizApp" class="app-wrapper hidden">
+    <div class="sidebar card">
+        <h3>Quiz Progress</h3>
+        <div id="navGrid" class="nav-grid"></div>
+    </div>
+
+    <div class="main-content card">
+        <h3 id="qMeta" class="q-meta">
+            <span id="qCount"></span>
+            <div class="score-container">
+                <span id="qScore"></span>
+                <button id="copyQBtn" class="copy-btn" title="Copy Question to Clipboard">📋</button>
+            </div>
+        </h3>
+        <div id="qText" class="q-text"></div>
+        <div id="options" class="options-container"></div>
+        
+        <div class="button-group">
+            <button id="submitBtn" class="action-btn">Submit</button>
+            <button id="nextBtn" class="action-btn hidden">Next</button>
+            
+            <button id="markBtn" class="action-btn btn-mark hidden">Mark Question</button>
+            
+            <button id="fixJsonBtn" class="action-btn btn-warning hidden">Fix Correct Answer</button>
+            <button id="saveDataBtn" class="action-btn btn-warning hidden" style="background: var(--warning); color: #000;">Save to Cloud</button>
+            <button id="cancelEditBtn" class="action-btn btn-warning hidden" style="background: var(--secondary); color: white;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let quizData = [];
+    let curIdx = 0;
+    let isEditingData = false;
+    let appsScriptUrl = "";
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Theme logic
+        const themeBtn = document.getElementById('themeToggleBtn');
+        if (localStorage.getItem('quizTheme') === 'dark') {
+            document.body.classList.add('dark-theme');
+            themeBtn.innerText = '☀️';
+        } else {
+            themeBtn.innerText = '🌙';
+        }
+        themeBtn.addEventListener('click', toggleTheme);
+
+        // Core Listeners
+        document.getElementById('loadBtn').addEventListener('click', () => initiateLoad(true));
+        document.getElementById('clearCacheBtn').addEventListener('click', unlinkDrive);
+        document.getElementById('restartQuizBtn').addEventListener('click', restartQuiz);
+        document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
+        document.getElementById('copyQBtn').addEventListener('click', copyQuestion);
+        
+        // JSON Upload Listeners
+        document.getElementById('reuploadBtn').addEventListener('click', showReuploadScreen);
+        document.getElementById('saveNewJsonBtn').addEventListener('click', handleNewJsonSubmit);
+        document.getElementById('cancelJsonBtn').addEventListener('click', cancelReupload);
+        
+        // Quiz Interactions
+        document.getElementById('submitBtn').addEventListener('click', submitAnswer);
+        document.getElementById('nextBtn').addEventListener('click', nextQuestion);
+        document.getElementById('markBtn').addEventListener('click', toggleMark);
+        document.getElementById('fixJsonBtn').addEventListener('click', startEditData);
+        document.getElementById('saveDataBtn').addEventListener('click', saveEditedData);
+        document.getElementById('cancelEditBtn').addEventListener('click', () => { isEditingData = false; renderQ(); });
+
+        // Auto-load if Script URL is cached
+        const savedUrl = localStorage.getItem('gasWebUrl');
+        if (savedUrl) {
+            document.getElementById('scriptUrlInput').value = savedUrl;
+            initiateLoad(false);
+        }
+    });
+
+    function toggleTheme() {
+        const body = document.body;
+        body.classList.toggle('dark-theme');
+        const btn = document.getElementById('themeToggleBtn');
+        
+        if (body.classList.contains('dark-theme')) {
+            localStorage.setItem('quizTheme', 'dark');
+            btn.innerText = '☀️';
+        } else {
+            localStorage.setItem('quizTheme', 'light');
+            btn.innerText = '🌙';
+        }
+    }
+
+    function unlinkDrive() {
+        if(!confirm("Are you sure? This will disconnect the app from Google Drive and return to the start screen.")) return;
+        localStorage.removeItem('gasWebUrl');
+        localStorage.removeItem('quizDataFull');
+        localStorage.removeItem('quizProgress');
+        location.reload();
+    }
+
+    function updateSyncStatus(status) {
+        const indicator = document.getElementById('syncIndicator');
+        if(status === 'saving') {
+            indicator.className = 'sync-status sync-active';
+            indicator.innerText = '🔄 Saving to Drive...';
+        } else if (status === 'success') {
+            indicator.className = 'sync-status sync-success';
+            indicator.innerText = '☁️ Synced to Drive';
+        } else if (status === 'error') {
+            indicator.className = 'sync-status';
+            indicator.style.color = 'var(--danger)';
+            indicator.innerText = '❌ Sync Failed';
+        }
+    }
+
+    // --- CLOUD SYNC LOGIC ---
+
+    async function initiateLoad(isManual) {
+        const urlInput = document.getElementById('scriptUrlInput').value.trim();
+        if (!urlInput) {
+            alert("Please paste the Google Apps Script URL.");
+            return;
+        }
+        
+        appsScriptUrl = urlInput;
+        const loadingMsg = document.getElementById('loadingMsg');
+        loadingMsg.classList.remove('hidden');
+        document.getElementById('loadBtn').disabled = true;
+
+        try {
+            const cachedData = localStorage.getItem('quizDataFull');
+            let useLocalCache = false;
+
+            if (isManual && cachedData && cachedData !== "[]" && cachedData !== "null") {
+                useLocalCache = confirm("Local saved progress was found on this device.\n\nClick 'OK' to upload and sync this local data TO the cloud.\nClick 'Cancel' to overwrite it and fetch data FROM the cloud.");
+            }
+
+            if (useLocalCache) {
+                // Upload existing local cache
+                loadingMsg.innerText = "⏳ Uploading local save to Google Drive...";
+                quizData = JSON.parse(cachedData);
+                curIdx = parseInt(localStorage.getItem('quizProgress')) || 0;
+                
+                const payload = { curIdx: curIdx, quizData: quizData };
+                await fetch(appsScriptUrl, {
+                    method: 'POST',
+                    body: JSON.stringify(payload),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' } 
+                });
+                
+                localStorage.setItem('gasWebUrl', appsScriptUrl);
+                startApp();
+            } else {
+                // Fetch from Drive
+                loadingMsg.innerText = "⏳ Fetching from Google Drive...";
+                const response = await fetch(appsScriptUrl);
+                const data = await response.json();
+                
+                let loadedQuizData = [];
+                let loadedIdx = 0;
+
+                if (Array.isArray(data)) {
+                    loadedQuizData = data;
+                } else if (data.quizData) {
+                    loadedQuizData = data.quizData;
+                    loadedIdx = data.curIdx || 0;
+                }
+
+                if (loadedQuizData.length === 0) {
+                    // Scenario: First time loaded, file is empty. Prompt for JSON.
+                    localStorage.setItem('gasWebUrl', appsScriptUrl);
+                    document.getElementById('configScreen').classList.add('hidden');
+                    document.getElementById('jsonInputScreen').classList.remove('hidden');
+                    document.getElementById('jsonScreenTitle').innerText = "Initialize Cloud File";
+                    document.getElementById('jsonScreenDesc').innerText = "Your Google Drive file is currently empty. Paste your JSON array below to initialize it.";
+                    document.getElementById('cancelJsonBtn').classList.add('hidden');
+                } else {
+                    // Scenario: File has data.
+                    quizData = loadedQuizData.map(q => ({ 
+                        ...q, 
+                        userAnswer: q.userAnswer || null, 
+                        status: q.status || null, 
+                        marked: q.marked || false 
+                    }));
+                    curIdx = loadedIdx;
+                    saveState();
+                    localStorage.setItem('gasWebUrl', appsScriptUrl);
+                    startApp();
+                }
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Failed to communicate with Google Drive. Make sure the Web App URL is correct and deployed for 'Anyone'.");
+        } finally {
+            loadingMsg.classList.add('hidden');
+            loadingMsg.innerText = "⏳ Communicating with Google Drive..."; 
+            document.getElementById('loadBtn').disabled = false;
+        }
+    }
+
+    async function syncStateToDrive() {
+        if (!appsScriptUrl) return;
+        updateSyncStatus('saving');
+        saveState();
+
+        const payload = { curIdx: curIdx, quizData: quizData };
+
+        try {
+            await fetch(appsScriptUrl, {
+                method: 'POST',
+                body: JSON.stringify(payload),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' } 
+            });
+            updateSyncStatus('success');
+        } catch (e) {
+            console.error("Sync failed", e);
+            updateSyncStatus('error');
+        }
+    }
+
+    function saveState() {
+        localStorage.setItem('quizDataFull', JSON.stringify(quizData));
+        localStorage.setItem('quizProgress', curIdx);
+    }
+
+    // --- NEW JSON UPLOAD LOGIC ---
+
+    function showReuploadScreen() {
+        if(!confirm("Warning: Pasting new JSON will overwrite your current cloud file and reset all progress. Do you wish to continue?")) return;
+        
+        document.getElementById('quizApp').classList.add('hidden');
+        document.getElementById('exportJsonBtn').classList.add('hidden');
+        document.getElementById('restartQuizBtn').classList.add('hidden');
+        document.getElementById('reuploadBtn').classList.add('hidden');
+        
+        document.getElementById('jsonInputScreen').classList.remove('hidden');
+        document.getElementById('jsonScreenTitle').innerText = "Upload New JSON";
+        document.getElementById('jsonScreenDesc').innerText = "Paste your new JSON array below to completely overwrite your existing cloud file:";
+        document.getElementById('cancelJsonBtn').classList.remove('hidden');
+        document.getElementById('jsonInput').value = ""; 
+    }
+
+    function cancelReupload() {
+        document.getElementById('jsonInputScreen').classList.add('hidden');
+        startApp(); // Brings back the quiz UI and header buttons
+    }
+
+    function handleNewJsonSubmit() {
+        try {
+            const rawData = JSON.parse(document.getElementById('jsonInput').value);
+            
+            if(!Array.isArray(rawData) || rawData.length === 0) {
+                throw new Error("Data must be a non-empty array");
+            }
+
+            quizData = rawData.map(q => ({
+                ...q,
+                userAnswer: null, 
+                status: null,
+                marked: false 
+            }));
+            curIdx = 0;
+            
+            document.getElementById('jsonInputScreen').classList.add('hidden');
+            
+            syncStateToDrive(); 
+            startApp();
+            
+        } catch(e) { 
+            alert("Invalid JSON format! Please ensure you pasted a valid JSON array matching the placeholder structure."); 
+            console.error(e);
+        }
+    }
+
+    // --- CORE APP LOGIC ---
+
+    function startApp() {
+        document.getElementById('configScreen').classList.add('hidden');
+        document.getElementById('jsonInputScreen').classList.add('hidden');
+        document.getElementById('quizApp').classList.remove('hidden');
+        
+        document.getElementById('syncIndicator').classList.remove('hidden');
+        updateSyncStatus('success');
+        
+        document.getElementById('reuploadBtn').classList.remove('hidden');
+        document.getElementById('clearCacheBtn').classList.remove('hidden');
+        document.getElementById('restartQuizBtn').classList.remove('hidden');
+        document.getElementById('exportJsonBtn').classList.remove('hidden');
+        
+        renderSidebar();
+        renderQ();
+    }
+
+    function restartQuiz() {
+        if(!confirm("Restart the quiz? Progress will be lost, but your modified JSON answers and marked questions will be kept.")) return;
+        
+        quizData.forEach(q => {
+            q.userAnswer = null;
+            q.status = null;
+        });
+        
+        curIdx = 0;
+        isEditingData = false;
+        
+        syncStateToDrive();
+        renderSidebar();
+        renderQ();
+    }
+
+    function copyToClipboard(text, onSuccess, onError) {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess, onError));
+        } else {
+            fallbackCopy(text, onSuccess, onError);
+        }
+    }
+
+    function fallbackCopy(text, onSuccess, onError) {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed"; textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus(); textArea.select();
+        textArea.setSelectionRange(0, 999999); 
+        try {
+            if (document.execCommand('copy') && onSuccess) onSuccess();
+            else if (onError) onError(new Error("Browser rejected copy."));
+        } catch (err) { if(onError) onError(err); }
+        document.body.removeChild(textArea);
+    }
+
+    function exportJSON() {
+        const cleanData = quizData.map(({ userAnswer, status, marked, ...rest }) => rest);
+        const textToCopy = JSON.stringify(cleanData, null, 4);
+        
+        copyToClipboard(
+            textToCopy,
+            () => alert("Cleaned JSON copied to clipboard!"),
+            (err) => alert("Failed to copy.")
+        );
+    }
+
+    function copyQuestion() {
+        const q = quizData[curIdx];
+        let copyText = `Question: ${q.question}\n\n`;
+        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        
+        q.options.forEach((opt, i) => {
+            copyText += `${letters[i] || (i+1)}) ${opt}\n`;
+        });
+
+        copyToClipboard(
+            copyText,
+            () => {
+                const btn = document.getElementById('copyQBtn');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '✅';
+                setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
+            },
+            (err) => alert("Failed to copy question.")
+        );
+    }
+
+    function goToQuestion(index) {
+        if (isEditingData) {
+            if(!confirm("You are editing the correct answer. Discard changes?")) return;
+            isEditingData = false;
+        }
+        curIdx = index;
+        syncStateToDrive(); 
+        renderSidebar(); 
+        renderQ();
+    }
+
+    function renderSidebar() {
+        const navGrid = document.getElementById('navGrid');
+        navGrid.innerHTML = '';
+        
+        quizData.forEach((q, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'nav-btn';
+            btn.innerText = i + 1;
+            
+            if (q.marked) btn.classList.add('marked');
+            else if (q.status === 'correct') btn.classList.add('correct');
+            else if (q.status === 'incorrect') btn.classList.add('incorrect');
+            
+            if (i === curIdx) btn.classList.add('active');
+            
+            btn.addEventListener('click', () => goToQuestion(i));
+            navGrid.appendChild(btn);
+        });
+    }
+
+    function renderQ() {
+        const q = quizData[curIdx];
+        const currentScore = quizData.filter(x => x.status === 'correct').length;
+        
+        let metaText = `Question ${curIdx + 1} of ${quizData.length}`;
+        if (isEditingData) metaText += ` <span class="edit-badge">EDITING CLOUD DATA</span>`;
+        
+        document.getElementById('qCount').innerHTML = metaText;
+        document.getElementById('qScore').innerText = `Score: ${currentScore}`;
+        document.getElementById('qText').innerText = q.question;
+        
+        const optCont = document.getElementById('options');
+        optCont.innerHTML = '';
+        
+        const inputType = q.correctAnswers.length > 1 ? 'checkbox' : 'radio';
+        const isAnswered = q.status !== null;
+        
+        q.options.forEach((o, i) => {
+            const label = document.createElement('label');
+            label.className = 'option-label';
+            
+            const input = document.createElement('input');
+            input.type = inputType;
+            input.name = 'quizOption';
+            input.value = i;
+            
+            if (isEditingData) {
+                input.disabled = false;
+                label.classList.add('edit-mode-label');
+                if (q.correctAnswers.includes(i)) input.checked = true;
+            } else if (isAnswered) {
+                input.disabled = true;
+                label.classList.add('disabled');
+                
+                if (q.userAnswer && q.userAnswer.includes(i)) input.checked = true;
+                if (q.correctAnswers.includes(i)) label.classList.add('correct');
+                else if (q.userAnswer && q.userAnswer.includes(i)) label.classList.add('incorrect');
+            }
+            
+            label.appendChild(input);
+            label.appendChild(document.createTextNode(' ' + o));
+            optCont.appendChild(label);
+        });
+
+        // Button Visibility
+        const submitBtn = document.getElementById('submitBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const markBtn = document.getElementById('markBtn');
+        const fixJsonBtn = document.getElementById('fixJsonBtn');
+        const saveDataBtn = document.getElementById('saveDataBtn');
+        const cancelEditBtn = document.getElementById('cancelEditBtn');
+        
+        markBtn.classList.remove('hidden');
+        if (q.marked) {
+            markBtn.innerText = 'Unmark Question';
+            markBtn.classList.add('is-marked');
+        } else {
+            markBtn.innerText = 'Mark Question';
+            markBtn.classList.remove('is-marked');
+        }
+
+        if (isEditingData) {
+            submitBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); markBtn.classList.add('hidden');
+            fixJsonBtn.classList.add('hidden'); saveDataBtn.classList.remove('hidden'); cancelEditBtn.classList.remove('hidden');
+        } else if (isAnswered) {
+            submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden');
+            saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
+            nextBtn.innerText = (curIdx === quizData.length - 1) ? "Finish Quiz" : "Next Question";
+        } else {
+            submitBtn.classList.remove('hidden'); fixJsonBtn.classList.add('hidden'); nextBtn.classList.add('hidden');
+            saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
+        }
+    }
+
+    function toggleMark() {
+        quizData[curIdx].marked = !quizData[curIdx].marked;
+        syncStateToDrive();
+        renderQ(); 
+        renderSidebar(); 
+    }
+
+    function submitAnswer() {
+        const q = quizData[curIdx];
+        const inputs = document.querySelectorAll('input[name="quizOption"]');
+        const selected = Array.from(inputs).filter(i => i.checked).map(i => parseInt(i.value));
+        
+        if(selected.length === 0) { alert("Please select an answer before submitting."); return; }
+
+        const isCorrect = selected.length === q.correctAnswers.length && selected.every(val => q.correctAnswers.includes(val));
+        
+        q.userAnswer = selected;
+        q.status = isCorrect ? 'correct' : 'incorrect';
+        
+        syncStateToDrive();
+        renderQ(); 
+        renderSidebar();
+    }
+
+    function startEditData() {
+        isEditingData = true;
+        renderQ(); 
+    }
+
+    function saveEditedData() {
+        const q = quizData[curIdx];
+        const inputs = document.querySelectorAll('input[name="quizOption"]');
+        const newCorrectAnswers = Array.from(inputs).filter(i => i.checked).map(i => parseInt(i.value));
+        
+        if(newCorrectAnswers.length === 0) {
+            alert("You must select at least one option as the correct answer for the Cloud DB.");
+            return;
+        }
+
+        q.correctAnswers = newCorrectAnswers;
+        
+        if (q.userAnswer) {
+            const isCorrect = q.userAnswer.length === q.correctAnswers.length && q.userAnswer.every(val => q.correctAnswers.includes(val));
+            q.status = isCorrect ? 'correct' : 'incorrect';
+        }
+
+        isEditingData = false;
+        
+        syncStateToDrive(); 
+        
+        renderQ();
+        renderSidebar();
+        
+        const qMeta = document.getElementById('qCount');
+        qMeta.innerHTML = `<span style="color: var(--success);">Cloud Updated Successfully!</span>`;
+        setTimeout(() => renderQ(), 2000);
+    }
+
+    function nextQuestion() {
+        if (curIdx < quizData.length - 1) {
+            goToQuestion(curIdx + 1);
+        } else {
+            const finalScore = quizData.filter(x => x.status === 'correct').length;
+            alert(`Quiz Finished! Final Score: ${finalScore} out of ${quizData.length}`);
+        }
+    }
+</script>
+</body>
+</html>
