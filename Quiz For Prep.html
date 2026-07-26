@@ -504,7 +504,7 @@
             alert("Failed to communicate with Google Drive. Make sure the Web App URL is correct and deployed for 'Anyone'.");
         } finally {
             loadingMsg.classList.add('hidden');
-            loadingMsg.innerText = "⏳ Communicating with Google Drive..."; 
+            loadingMsg.innerText = "⏳ Communicating with Google Drive... "; 
             document.getElementById('loadBtn').disabled = false;
         }
     }
@@ -540,6 +540,54 @@
         return indicesArray.length > 1 ? `Options ${letters}` : `Option ${letters}`;
     }
 
+    // --- CENTRALIZED GEMINI FALLBACK AND RETRY EXECUTOR ---
+    async function executeGeminiRequest(prompt, apiKey) {
+        let model = 'gemini-3.6-flash';
+        
+        let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { response_mime_type: "application/json" }
+            })
+        });
+
+        // Check if primary request returns status code 459
+        if (response.status === 459) {
+            // Retry once with the primary model
+            response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { response_mime_type: "application/json" }
+                })
+            });
+
+            // If it fails again (either another 459 or other bad request status), switch context to the fallback model
+            if (response.status === 459 || !response.ok) {
+                model = 'gemini-3-flash-preview';
+                response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { response_mime_type: "application/json" }
+                    })
+                });
+            }
+        }
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error?.message || `HTTP Status ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return data.candidates[0].content.parts[0].text;
+    }
+
     // --- AI BATCH CHECK ALL LOGIC ---
     async function checkAllWithGemini() {
         const apiKey = localStorage.getItem('geminiApiKey');
@@ -566,14 +614,11 @@
         errorText.innerText = "";
 
         let dataUpdated = false;
-        
-        // Define batch size logic. Using a limit of 20 items per request max. 
         const batchSize = 20;
 
         for (let i = 0; i < total; i += batchSize) {
             const batch = quizData.slice(i, i + batchSize);
             
-            // Map over current batch and extract text options for the prompt.
             const batchPrompt = batch.map((q, idx) => {
                 const optionsString = q.options.map((opt, oIdx) => `[Index ${oIdx}]: ${opt}`).join('\n');
                 return `Question ID: ${i + idx}\nQuestion: ${q.question}\nOptions:\n${optionsString}`;
@@ -597,22 +642,7 @@ ${batchPrompt}`;
                 try {
                     errorText.innerText = "";
                     
-                    // Fetch configured to new Gemini 3.0 Flash model 
-                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ parts: [{ text: prompt }] }],
-                            generationConfig: { response_mime_type: "application/json" }
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    
-                    const data = await response.json();
-                    const rawOutput = data.candidates[0].content.parts[0].text;
+                    const rawOutput = await executeGeminiRequest(prompt, apiKey);
                     const results = JSON.parse(rawOutput);
 
                     if (!Array.isArray(results) || results.length !== batch.length) {
@@ -625,7 +655,6 @@ ${batchPrompt}`;
                         const newAnswers = result.correctAnswers;
                         const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
-                        // Auto-update answers dynamically
                         if (!isSame) {
                             q.correctAnswers = newAnswers;
                             if (q.userAnswer !== null) {
@@ -711,26 +740,9 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
 }`;
 
         try {
-            // Also updated configuration explicitly to the requested Gemini 3.0 Flash model
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { response_mime_type: "application/json" }
-                })
-            });
-
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error?.message || "API Request Failed");
-            }
-            
-            const data = await response.json();
-            const rawOutput = data.candidates[0].content.parts[0].text;
+            const rawOutput = await executeGeminiRequest(prompt, apiKey);
             const result = JSON.parse(rawOutput);
 
-            // Check if JSON DB needs updating
             const oldAnswers = q.correctAnswers;
             const newAnswers = result.correctAnswers;
             const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
@@ -1006,15 +1018,11 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
             optCont.appendChild(label);
         });
 
-        // Always show the explanation container
         const explanationText = document.getElementById('explanationText');
         const toggleExplanationBtn = document.getElementById('toggleExplanationBtn');
         
-        // Hide the text by default, let user toggle it open
         explanationText.classList.add('hidden'); 
         toggleExplanationBtn.innerText = "Show Explanation";
-        
-        // Populate the explanation if it exists, otherwise it will just show blank/empty
         explanationText.innerText = q.explanation ? q.explanation : ""; 
 
         // Button Visibility
