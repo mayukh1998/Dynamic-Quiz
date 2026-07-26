@@ -180,7 +180,7 @@
         .explanation-toggle:hover { text-decoration: underline; }
         .explanation-content { margin-top: 10px; line-height: 1.5; font-size: 0.95em; min-height: 20px; }
 
-        /* Progress Modal */
+        /* Progress & Review Modals */
         .overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
             background: rgba(0, 0, 0, 0.6); z-index: 999;
@@ -189,6 +189,17 @@
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 1000; width: 90%; max-width: 400px; text-align: center;
         }
+        
+        .review-modal {
+            position: fixed; top: 5%; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; z-index: 1001;
+            padding: 30px; display: flex; flex-direction: column;
+        }
+        .close-review-btn {
+            position: absolute; top: 15px; right: 20px; background: none; border: none;
+            font-size: 2em; cursor: pointer; color: var(--text); transition: color 0.2s;
+        }
+        .close-review-btn:hover { color: var(--danger); }
 
         .hidden { display: none !important; }
         
@@ -238,6 +249,15 @@
     </div>
     <p id="progressText" style="font-weight: bold; color: var(--text);">0 / 0</p>
     <p id="progressErrorText" style="color: var(--danger); font-weight: bold; font-size: 0.9em; margin-top: 10px; min-height: 20px;"></p>
+</div>
+
+<!-- Review Changes Modal -->
+<div id="reviewOverlay" class="overlay hidden"></div>
+<div id="reviewModal" class="card review-modal hidden">
+    <button id="closeReviewBtn" class="close-review-btn" title="Close Review">&times;</button>
+    <h2 style="margin-top: 0; padding-right: 30px; color: var(--text);">AI Answer Updates Review</h2>
+    <p style="color: var(--secondary); margin-top: 0;">The following questions had their correct answers modified by the AI batch check:</p>
+    <div id="reviewContent" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;"></div>
 </div>
 
 <div class="header">
@@ -365,6 +385,9 @@
         // AI Integrations
         document.getElementById('geminiHelpBtn').addEventListener('click', fetchGeminiAnswer);
         document.getElementById('toggleExplanationBtn').addEventListener('click', toggleExplanation);
+
+        // Review Modal listeners
+        document.getElementById('closeReviewBtn').addEventListener('click', closeReviewModal);
 
         if (savedUrl) initiateLoad(false);
     });
@@ -614,6 +637,7 @@
         errorText.innerText = "";
 
         let dataUpdated = false;
+        let changedQuestions = [];
         const batchSize = 20;
 
         for (let i = 0; i < total; i += batchSize) {
@@ -656,6 +680,14 @@ ${batchPrompt}`;
                         const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
                         if (!isSame) {
+                            changedQuestions.push({
+                                index: i + idx,
+                                question: q.question,
+                                options: q.options,
+                                oldAnswers: [...oldAnswers],
+                                newAnswers: [...newAnswers]
+                            });
+
                             q.correctAnswers = newAnswers;
                             if (q.userAnswer !== null) {
                                 const isUserCorrect = q.userAnswer.length === q.correctAnswers.length && q.userAnswer.every(val => q.correctAnswers.includes(val));
@@ -710,7 +742,54 @@ ${batchPrompt}`;
         renderQ();
         renderSidebar();
         
-        alert("Answers and explanations have been successfully synced!");
+        if (changedQuestions.length > 0) {
+            showReviewModal(changedQuestions);
+        } else {
+            alert("Answers and explanations have been successfully synced! No correct answers needed to be updated.");
+        }
+    }
+
+    // --- REVIEW MODAL LOGIC ---
+    function showReviewModal(changes) {
+        const overlay = document.getElementById('reviewOverlay');
+        const modal = document.getElementById('reviewModal');
+        const content = document.getElementById('reviewContent');
+        
+        content.innerHTML = '';
+        
+        changes.forEach(change => {
+            const oldText = change.oldAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
+            const newText = change.newAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
+            
+            const div = document.createElement('div');
+            div.style.padding = '20px';
+            div.style.border = '1px solid var(--border)';
+            div.style.borderRadius = '8px';
+            div.style.background = 'var(--bg)';
+            
+            div.innerHTML = `
+                <p style="font-weight: 600; margin-top: 0; font-size: 1.1em; color: var(--text);">Question ${change.index + 1}: ${change.question}</p>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px;">
+                    <div style="flex: 1; min-width: 200px; padding: 15px; background: var(--error-bg); border-radius: 6px; border: 1px solid var(--error); color: var(--status-text);">
+                        <strong style="display: block; margin-bottom: 8px;">Old Answer: ${formatIndicesToLetters(change.oldAnswers)}</strong>
+                        ${oldText}
+                    </div>
+                    <div style="flex: 1; min-width: 200px; padding: 15px; background: var(--success-bg); border-radius: 6px; border: 1px solid var(--success); color: var(--status-text);">
+                        <strong style="display: block; margin-bottom: 8px;">New Answer: ${formatIndicesToLetters(change.newAnswers)}</strong>
+                        ${newText}
+                    </div>
+                </div>
+            `;
+            content.appendChild(div);
+        });
+        
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+    }
+
+    function closeReviewModal() {
+        document.getElementById('reviewOverlay').classList.add('hidden');
+        document.getElementById('reviewModal').classList.add('hidden');
     }
 
     // --- AI SINGLE QUESTION LOGIC ---
