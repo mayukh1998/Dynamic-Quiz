@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Quiz</title>
+    <title>Dynamic Quiz with Gemini AI</title>
     <style>
         /* Base Light Theme Variables */
         :root { 
@@ -119,12 +119,13 @@
             padding: 2px 6px; border-radius: 4px; color: inherit; transition: background 0.2s;
             display: flex; align-items: center; justify-content: center;
         }
-        .copy-btn:hover { background: rgba(128, 128, 128, 0.15); }
+        .copy-btn:hover:not(:disabled) { background: rgba(128, 128, 128, 0.15); }
+        .copy-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .q-text { font-size: 1.3em; margin-bottom: 25px; font-weight: 600; line-height: 1.4; }
         .edit-badge { background: var(--warning); color: #000; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
         
-        input[type="text"] { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); font-size: 16px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); font-size: 16px; }
         textarea { width: 100%; height: 250px; margin: 20px 0; font-family: monospace; padding: 15px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; background: var(--card-bg); color: var(--text); transition: all 0.3s ease; }
         
         /* Buttons */
@@ -135,7 +136,7 @@
             cursor: pointer; border-radius: 8px; font-weight: bold; font-size: 16px; 
             transition: background 0.2s ease; flex: 1; 
         }
-        button.action-btn:hover { background: var(--primary-hover); }
+        button.action-btn:hover:not(:disabled) { background: var(--primary-hover); }
         button.action-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         
         button.btn-warning { background: var(--warning); flex: 0 1 auto; font-size: 14px; padding: 10px 18px; color: #000; }
@@ -156,6 +157,7 @@
         .restart-btn { background: var(--warning); color: #000; }
         .export-btn { background: var(--success); color: var(--status-text); }
         .theme-btn { background: var(--secondary); font-size: 1.1em; padding: 8px 16px; }
+        .api-key-btn { background: var(--purple); font-size: 1em; }
 
         /* Sync Status Indicator */
         .sync-status {
@@ -164,6 +166,19 @@
         }
         .sync-active { color: var(--warning); }
         .sync-success { color: var(--success); }
+
+        /* Explanation UI */
+        .explanation-box {
+            margin-top: 20px; padding: 15px;
+            background: var(--edit-bg); border: 1px dashed var(--warning);
+            border-radius: 8px; color: var(--text);
+        }
+        .explanation-toggle {
+            background: none; border: none; font-weight: bold; 
+            color: var(--warning-hover); cursor: pointer; padding: 0; font-size: 1em;
+        }
+        .explanation-toggle:hover { text-decoration: underline; }
+        .explanation-content { margin-top: 10px; line-height: 1.5; font-size: 0.95em; min-height: 20px; }
 
         .hidden { display: none !important; }
         
@@ -207,17 +222,19 @@
 <div class="header">
     <div id="syncIndicator" class="sync-status hidden">☁️ Cloud Synced</div>
     <button id="themeToggleBtn" class="top-btn theme-btn" title="Toggle Theme">🌙</button>
+    <button id="changeApiKeyBtn" class="top-btn api-key-btn hidden" title="Change Gemini API Key">🔑 API Key</button>
     <button id="reuploadBtn" class="top-btn theme-btn hidden" title="Upload New JSON" style="background: var(--primary);">📂 New JSON</button>
     <button id="exportJsonBtn" class="top-btn export-btn hidden">Copy Clean JSON</button>
     <button id="restartQuizBtn" class="top-btn restart-btn hidden">Restart Quiz</button>
-    <button id="clearCacheBtn" class="top-btn clear-btn hidden">Unlink Drive</button>
+    <button id="clearCacheBtn" class="top-btn clear-btn hidden">Unlink Services</button>
 </div>
 
 <div id="configScreen" class="config-container card">
-    <h2>Connect to Google Drive</h2>
-    <p>Paste your Google Apps Script Web App URL to load and sync your quiz data directly to the cloud.</p>
+    <h2>Connect Integrations</h2>
+    <p>Paste your Google Apps Script URL for cloud saving, and your Gemini API Key for AI features.</p>
     <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <button id="loadBtn" class="action-btn">Load from Cloud</button>
+    <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key (Optional but required for ✨ features)">
+    <button id="loadBtn" class="action-btn">Load System</button>
     <p id="loadingMsg" class="hidden" style="color: var(--primary); font-weight: bold; margin-top: 15px;">⏳ Communicating with Google Drive...</p>
 </div>
 
@@ -248,12 +265,18 @@
             <span id="qCount"></span>
             <div class="score-container">
                 <span id="qScore"></span>
+                <button id="geminiHelpBtn" class="copy-btn" title="Ask AI to verify answer & explain">✨</button>
                 <button id="copyQBtn" class="copy-btn" title="Copy Question to Clipboard">📋</button>
             </div>
         </h3>
         <div id="qText" class="q-text"></div>
         <div id="options" class="options-container"></div>
         
+        <div id="explanationContainer" class="explanation-box">
+            <button id="toggleExplanationBtn" class="explanation-toggle">Show Explanation</button>
+            <div id="explanationText" class="explanation-content hidden"></div>
+        </div>
+
         <div class="button-group">
             <button id="submitBtn" class="action-btn">Submit</button>
             <button id="nextBtn" class="action-btn hidden">Next</button>
@@ -284,12 +307,21 @@
         }
         themeBtn.addEventListener('click', toggleTheme);
 
+        // Populate Config Data
+        const savedUrl = localStorage.getItem('gasWebUrl');
+        const savedApiKey = localStorage.getItem('geminiApiKey');
+        if (savedUrl) document.getElementById('scriptUrlInput').value = savedUrl;
+        if (savedApiKey) document.getElementById('geminiApiKeyInput').value = savedApiKey;
+
         // Core Listeners
         document.getElementById('loadBtn').addEventListener('click', () => initiateLoad(true));
         document.getElementById('clearCacheBtn').addEventListener('click', unlinkDrive);
         document.getElementById('restartQuizBtn').addEventListener('click', restartQuiz);
         document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
         document.getElementById('copyQBtn').addEventListener('click', copyQuestion);
+        
+        // Settings / Config Listeners
+        document.getElementById('changeApiKeyBtn').addEventListener('click', changeApiKey);
         
         // JSON Upload Listeners
         document.getElementById('reuploadBtn').addEventListener('click', showReuploadScreen);
@@ -304,12 +336,11 @@
         document.getElementById('saveDataBtn').addEventListener('click', saveEditedData);
         document.getElementById('cancelEditBtn').addEventListener('click', () => { isEditingData = false; renderQ(); });
 
-        // Auto-load if Script URL is cached
-        const savedUrl = localStorage.getItem('gasWebUrl');
-        if (savedUrl) {
-            document.getElementById('scriptUrlInput').value = savedUrl;
-            initiateLoad(false);
-        }
+        // Gemini Integrations
+        document.getElementById('geminiHelpBtn').addEventListener('click', fetchGeminiAnswer);
+        document.getElementById('toggleExplanationBtn').addEventListener('click', toggleExplanation);
+
+        if (savedUrl) initiateLoad(false);
     });
 
     function toggleTheme() {
@@ -327,11 +358,28 @@
     }
 
     function unlinkDrive() {
-        if(!confirm("Are you sure? This will disconnect the app from Google Drive and return to the start screen.")) return;
+        if(!confirm("Are you sure? This will disconnect the app from Google Drive & clear your Gemini key.")) return;
         localStorage.removeItem('gasWebUrl');
+        localStorage.removeItem('geminiApiKey');
         localStorage.removeItem('quizDataFull');
         localStorage.removeItem('quizProgress');
         location.reload();
+    }
+
+    function changeApiKey() {
+        const currentKey = localStorage.getItem('geminiApiKey') || '';
+        const newKey = prompt("Enter your Gemini API Key:\n\n(Leave blank to remove the key)", currentKey);
+        
+        if (newKey !== null) {
+            const trimmed = newKey.trim();
+            if (trimmed) {
+                localStorage.setItem('geminiApiKey', trimmed);
+                alert("Gemini API Key updated successfully!");
+            } else {
+                localStorage.removeItem('geminiApiKey');
+                alert("Gemini API Key removed. AI features will be disabled until you add a new one.");
+            }
+        }
     }
 
     function updateSyncStatus(status) {
@@ -353,12 +401,16 @@
 
     async function initiateLoad(isManual) {
         const urlInput = document.getElementById('scriptUrlInput').value.trim();
+        const geminiInput = document.getElementById('geminiApiKeyInput').value.trim();
+
         if (!urlInput) {
             alert("Please paste the Google Apps Script URL.");
             return;
         }
         
         appsScriptUrl = urlInput;
+        if (geminiInput) localStorage.setItem('geminiApiKey', geminiInput);
+
         const loadingMsg = document.getElementById('loadingMsg');
         loadingMsg.classList.remove('hidden');
         document.getElementById('loadBtn').disabled = true;
@@ -372,7 +424,6 @@
             }
 
             if (useLocalCache) {
-                // Upload existing local cache
                 loadingMsg.innerText = "⏳ Uploading local save to Google Drive...";
                 quizData = JSON.parse(cachedData);
                 curIdx = parseInt(localStorage.getItem('quizProgress')) || 0;
@@ -387,7 +438,6 @@
                 localStorage.setItem('gasWebUrl', appsScriptUrl);
                 startApp();
             } else {
-                // Fetch from Drive
                 loadingMsg.innerText = "⏳ Fetching from Google Drive...";
                 const response = await fetch(appsScriptUrl);
                 const data = await response.json();
@@ -403,7 +453,6 @@
                 }
 
                 if (loadedQuizData.length === 0) {
-                    // Scenario: First time loaded, file is empty. Prompt for JSON.
                     localStorage.setItem('gasWebUrl', appsScriptUrl);
                     document.getElementById('configScreen').classList.add('hidden');
                     document.getElementById('jsonInputScreen').classList.remove('hidden');
@@ -411,12 +460,12 @@
                     document.getElementById('jsonScreenDesc').innerText = "Your Google Drive file is currently empty. Paste your JSON array below to initialize it.";
                     document.getElementById('cancelJsonBtn').classList.add('hidden');
                 } else {
-                    // Scenario: File has data.
                     quizData = loadedQuizData.map(q => ({ 
                         ...q, 
                         userAnswer: q.userAnswer || null, 
                         status: q.status || null, 
-                        marked: q.marked || false 
+                        marked: q.marked || false,
+                        explanation: q.explanation || null
                     }));
                     curIdx = loadedIdx;
                     saveState();
@@ -438,7 +487,6 @@
         if (!appsScriptUrl) return;
         updateSyncStatus('saving');
         saveState();
-
         const payload = { curIdx: curIdx, quizData: quizData };
 
         try {
@@ -459,6 +507,108 @@
         localStorage.setItem('quizProgress', curIdx);
     }
 
+    // --- GEMINI INTEGRATION LOGIC ---
+
+    async function fetchGeminiAnswer() {
+        const apiKey = localStorage.getItem('geminiApiKey');
+        if (!apiKey) {
+            alert("No API key found. Please click the '🔑 API Key' button at the top to add your Gemini API Key.");
+            return;
+        }
+
+        const q = quizData[curIdx];
+        const geminiBtn = document.getElementById('geminiHelpBtn');
+        geminiBtn.innerText = '⏳';
+        geminiBtn.disabled = true;
+
+        const optionsString = q.options.map((opt, i) => `[Index ${i}]: ${opt}`).join('\n');
+        const prompt = `
+You are a technical quiz assistant. Given the question and options below, return the correct option index (or indices if multiple) and a brief explanation (max 400 characters). 
+Question: ${q.question}
+Options:
+${optionsString}
+
+Return strictly a valid JSON object matching this schema, no markdown blocks:
+{
+    "correctAnswers": [number, ...],
+    "explanation": "string (under 400 chars)"
+}`;
+
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { response_mime_type: "application/json" }
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error?.message || "API Request Failed");
+            }
+            
+            const data = await response.json();
+            const rawOutput = data.candidates[0].content.parts[0].text;
+            const result = JSON.parse(rawOutput);
+
+            // Check if JSON DB needs updating
+            const oldAnswers = q.correctAnswers;
+            const newAnswers = result.correctAnswers;
+            const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
+
+            let dataUpdated = false;
+            
+            if (!isSame) {
+                const userConfirmed = confirm(`Gemini suggests the correct answer index is: ${newAnswers.join(', ')}.\nYour JSON currently has: ${oldAnswers.join(', ')}.\n\nDo you want to update your JSON DB with Gemini's answer?`);
+                if (userConfirmed) {
+                    q.correctAnswers = newAnswers;
+                    // If user had already submitted an answer, re-calculate their correctness
+                    if (q.userAnswer !== null) {
+                        const isUserCorrect = q.userAnswer.length === q.correctAnswers.length && q.userAnswer.every(val => q.correctAnswers.includes(val));
+                        q.status = isUserCorrect ? 'correct' : 'incorrect';
+                    }
+                    dataUpdated = true;
+                }
+            }
+
+            q.explanation = result.explanation;
+            
+            if (dataUpdated) {
+                syncStateToDrive();
+            } else {
+                saveState(); // just saving local cache for explanation
+            }
+            
+            renderQ();
+            
+            // Auto-open explanation after Gemini fetches it
+            document.getElementById('explanationText').classList.remove('hidden');
+            document.getElementById('toggleExplanationBtn').innerText = "Hide Explanation";
+
+        } catch (err) {
+            console.error("Gemini Error:", err);
+            alert(`Failed to reach Gemini: ${err.message}\n\nPlease check your console or ensure your API key is valid by clicking the '🔑 API Key' button above.`);
+        } finally {
+            geminiBtn.innerText = '✨';
+            geminiBtn.disabled = false;
+        }
+    }
+
+    function toggleExplanation() {
+        const expText = document.getElementById('explanationText');
+        const toggleBtn = document.getElementById('toggleExplanationBtn');
+        if (expText.classList.contains('hidden')) {
+            expText.classList.remove('hidden');
+            toggleBtn.innerText = "Hide Explanation";
+        } else {
+            expText.classList.add('hidden');
+            toggleBtn.innerText = "Show Explanation";
+        }
+    }
+
+
     // --- NEW JSON UPLOAD LOGIC ---
 
     function showReuploadScreen() {
@@ -468,6 +618,7 @@
         document.getElementById('exportJsonBtn').classList.add('hidden');
         document.getElementById('restartQuizBtn').classList.add('hidden');
         document.getElementById('reuploadBtn').classList.add('hidden');
+        document.getElementById('changeApiKeyBtn').classList.add('hidden');
         
         document.getElementById('jsonInputScreen').classList.remove('hidden');
         document.getElementById('jsonScreenTitle').innerText = "Upload New JSON";
@@ -478,7 +629,7 @@
 
     function cancelReupload() {
         document.getElementById('jsonInputScreen').classList.add('hidden');
-        startApp(); // Brings back the quiz UI and header buttons
+        startApp();
     }
 
     function handleNewJsonSubmit() {
@@ -493,7 +644,8 @@
                 ...q,
                 userAnswer: null, 
                 status: null,
-                marked: false 
+                marked: false,
+                explanation: null
             }));
             curIdx = 0;
             
@@ -519,6 +671,7 @@
         updateSyncStatus('success');
         
         document.getElementById('reuploadBtn').classList.remove('hidden');
+        document.getElementById('changeApiKeyBtn').classList.remove('hidden');
         document.getElementById('clearCacheBtn').classList.remove('hidden');
         document.getElementById('restartQuizBtn').classList.remove('hidden');
         document.getElementById('exportJsonBtn').classList.remove('hidden');
@@ -566,7 +719,7 @@
     }
 
     function exportJSON() {
-        const cleanData = quizData.map(({ userAnswer, status, marked, ...rest }) => rest);
+        const cleanData = quizData.map(({ userAnswer, status, marked, explanation, ...rest }) => rest);
         const textToCopy = JSON.stringify(cleanData, null, 4);
         
         copyToClipboard(
@@ -671,6 +824,17 @@
             label.appendChild(document.createTextNode(' ' + o));
             optCont.appendChild(label);
         });
+
+        // Always show the explanation container
+        const explanationText = document.getElementById('explanationText');
+        const toggleExplanationBtn = document.getElementById('toggleExplanationBtn');
+        
+        // Hide the text by default, let user toggle it open
+        explanationText.classList.add('hidden'); 
+        toggleExplanationBtn.innerText = "Show Explanation";
+        
+        // Populate the explanation if it exists, otherwise it will just show blank/empty
+        explanationText.innerText = q.explanation ? q.explanation : ""; 
 
         // Button Visibility
         const submitBtn = document.getElementById('submitBtn');
