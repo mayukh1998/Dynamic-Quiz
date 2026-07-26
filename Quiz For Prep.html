@@ -339,8 +339,8 @@
         // Gemini Integrations
         document.getElementById('geminiHelpBtn').addEventListener('click', fetchGeminiAnswer);
         document.getElementById('toggleExplanationBtn').addEventListener('click', toggleExplanation);
-
-        if (savedUrl) initiateLoad(false);
+        
+        if (savedUrl && savedApiKey) initiateLoad(false);
     });
 
     function toggleTheme() {
