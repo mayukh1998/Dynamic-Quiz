@@ -158,6 +158,7 @@
         .export-btn { background: var(--success); color: var(--status-text); }
         .theme-btn { background: var(--secondary); font-size: 1.1em; padding: 8px 16px; }
         .api-key-btn { background: var(--purple); font-size: 1.2em; padding: 8px 12px; }
+        .notes-btn { background: var(--primary); color: white; } /* New Note button styling */
 
         /* Sync Status Indicator */
         .sync-status {
@@ -195,6 +196,14 @@
             width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; z-index: 1001;
             padding: 30px; display: flex; flex-direction: column;
         }
+        
+        /* Ensure Notes modal maps similarly to Review Modal but has its own space */
+        .notes-modal {
+            position: fixed; top: 5%; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; z-index: 1002;
+            padding: 30px; display: flex; flex-direction: column;
+        }
+        
         .close-review-btn {
             position: absolute; top: 15px; right: 20px; background: none; border: none;
             font-size: 2em; cursor: pointer; color: var(--text); transition: color 0.2s;
@@ -260,11 +269,21 @@
     <div id="reviewContent" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;"></div>
 </div>
 
+<!-- Notes Modal -->
+<div id="notesOverlay" class="overlay hidden"></div>
+<div id="notesModal" class="card notes-modal hidden">
+    <button id="closeNotesBtn" class="close-review-btn" title="Close Notes">&times;</button>
+    <h2 style="margin-top: 0; padding-right: 30px; color: var(--text);">Study Notes</h2>
+    <p style="color: var(--secondary); margin-top: 0;">Concise, auto-generated notes based on quiz explanations.</p>
+    <div id="notesContent" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px; font-size: 1.05em; line-height: 1.7; white-space: pre-wrap;"></div>
+</div>
+
 <div class="header">
     <div id="syncIndicator" class="sync-status hidden">☁️ Cloud Synced</div>
     <button id="themeToggleBtn" class="top-btn theme-btn" title="Toggle Theme">🌙</button>
     <button id="changeApiKeyBtn" class="top-btn api-key-btn hidden" title="Change API Key">🔑</button>
     <button id="checkAllBtn" class="top-btn hidden" title="Check All Questions with AI" style="background: var(--purple);">⭐ Check All</button>
+    <button id="notesBtn" class="top-btn notes-btn hidden" title="Generate AI Study Notes">📝 Notes</button>
     <button id="reuploadBtn" class="top-btn theme-btn hidden" title="Upload New JSON" style="background: var(--primary);">📂 New JSON</button>
     <button id="exportJsonBtn" class="top-btn export-btn hidden">Copy JSON</button>
     <button id="restartQuizBtn" class="top-btn restart-btn hidden">Restart Quiz</button>
@@ -337,6 +356,7 @@
     let curIdx = 0;
     let isEditingData = false;
     let appsScriptUrl = "";
+    let globalNotes = null; // New variable to store generated notes
 
     // Helper for sleep/delays
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -369,6 +389,10 @@
         document.getElementById('changeApiKeyBtn').addEventListener('click', changeApiKey);
         document.getElementById('checkAllBtn').addEventListener('click', checkAllWithGemini);
         
+        // Notes Feature Listeners
+        document.getElementById('notesBtn').addEventListener('click', handleNotesGeneration);
+        document.getElementById('closeNotesBtn').addEventListener('click', closeNotesModal);
+
         // JSON Upload Listeners
         document.getElementById('reuploadBtn').addEventListener('click', showReuploadScreen);
         document.getElementById('saveNewJsonBtn').addEventListener('click', handleNewJsonSubmit);
@@ -412,6 +436,7 @@
         localStorage.removeItem('geminiApiKey');
         localStorage.removeItem('quizDataFull');
         localStorage.removeItem('quizProgress');
+        localStorage.removeItem('quizNotes'); // clear cached notes
         location.reload();
     }
 
@@ -476,8 +501,9 @@
                 loadingMsg.innerText = "⏳ Uploading local save to Google Drive...";
                 quizData = JSON.parse(cachedData);
                 curIdx = parseInt(localStorage.getItem('quizProgress')) || 0;
+                globalNotes = localStorage.getItem('quizNotes') || null;
                 
-                const payload = { curIdx: curIdx, quizData: quizData };
+                const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes };
                 await fetch(appsScriptUrl, {
                     method: 'POST',
                     body: JSON.stringify(payload),
@@ -499,6 +525,7 @@
                 } else if (data.quizData) {
                     loadedQuizData = data.quizData;
                     loadedIdx = data.curIdx || 0;
+                    globalNotes = data.quizNotes || null; 
                 }
 
                 if (loadedQuizData.length === 0) {
@@ -536,7 +563,7 @@
         if (!appsScriptUrl) return;
         updateSyncStatus('saving');
         saveState();
-        const payload = { curIdx: curIdx, quizData: quizData };
+        const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes };
 
         try {
             await fetch(appsScriptUrl, {
@@ -554,6 +581,7 @@
     function saveState() {
         localStorage.setItem('quizDataFull', JSON.stringify(quizData));
         localStorage.setItem('quizProgress', curIdx);
+        localStorage.setItem('quizNotes', globalNotes || "");
     }
 
     // --- HELPER FOR FORMATTING INDICES TO LETTERS ---
@@ -610,6 +638,79 @@
         const data = await response.json();
         return data.candidates[0].content.parts[0].text;
     }
+
+    // --- NOTES GENERATION MODAL LOGIC ---
+    async function handleNotesGeneration() {
+        if (globalNotes) {
+            renderNotesModal(globalNotes);
+            return;
+        }
+
+        const apiKey = localStorage.getItem('geminiApiKey');
+        if (!apiKey) {
+            alert("No API key found. Please click the '🔑' button at the top to add your API Key to generate notes.");
+            return;
+        }
+
+        const explanations = quizData.map(q => q.explanation).filter(exp => exp && exp.trim() !== "");
+        
+        if (explanations.length === 0) {
+            alert("No explanations found in the quiz data. Please generate explanations using AI (✨ or ⭐ Check All) first.");
+            return;
+        }
+
+        const combinedExplanations = explanations.join("\n\n");
+
+        const prompt = `You are a study assistant. Combine the following quiz explanations and summarize them into a highly concise, precise set of bullet points (use standard markdown bullet points). 
+Make the notes as short and concise as possible, keeping only crucial facts to easily remember.
+
+Return strictly a valid JSON object matching this schema:
+{
+  "notes": "string (your formatted markdown bullet points)"
+}
+
+Explanations:
+${combinedExplanations}`;
+
+        const notesBtn = document.getElementById('notesBtn');
+        const originalText = notesBtn.innerText;
+        notesBtn.innerText = '⏳ Generating...';
+        notesBtn.disabled = true;
+
+        try {
+            const rawOutput = await executeGeminiRequest(prompt, apiKey);
+            const result = JSON.parse(rawOutput);
+
+            if (result && result.notes) {
+                globalNotes = result.notes;
+                syncStateToDrive(); 
+                renderNotesModal(globalNotes);
+            } else {
+                throw new Error("Invalid output format returned by AI.");
+            }
+        } catch (err) {
+            console.error("Notes Generation Error:", err);
+            alert(`Failed to generate notes: ${err.message}`);
+        } finally {
+            notesBtn.innerText = originalText;
+            notesBtn.disabled = false;
+        }
+    }
+
+    function renderNotesModal(notesText) {
+        // Convert simple markdown strong formatting to HTML
+        let htmlContent = notesText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        document.getElementById('notesContent').innerHTML = htmlContent;
+        
+        document.getElementById('notesOverlay').classList.remove('hidden');
+        document.getElementById('notesModal').classList.remove('hidden');
+    }
+
+    function closeNotesModal() {
+        document.getElementById('notesOverlay').classList.add('hidden');
+        document.getElementById('notesModal').classList.add('hidden');
+    }
+
 
     // --- AI BATCH CHECK ALL LOGIC ---
     async function checkAllWithGemini() {
@@ -890,6 +991,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         document.getElementById('reuploadBtn').classList.add('hidden');
         document.getElementById('changeApiKeyBtn').classList.add('hidden');
         document.getElementById('checkAllBtn').classList.add('hidden');
+        document.getElementById('notesBtn').classList.add('hidden');
         
         document.getElementById('jsonInputScreen').classList.remove('hidden');
         document.getElementById('jsonScreenTitle').innerText = "Upload New JSON";
@@ -919,6 +1021,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
                 explanation: null
             }));
             curIdx = 0;
+            globalNotes = null; // Clear old notes when uploading new JSON
             
             document.getElementById('jsonInputScreen').classList.add('hidden');
             
@@ -944,6 +1047,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         document.getElementById('reuploadBtn').classList.remove('hidden');
         document.getElementById('changeApiKeyBtn').classList.remove('hidden');
         document.getElementById('checkAllBtn').classList.remove('hidden');
+        document.getElementById('notesBtn').classList.remove('hidden');
         document.getElementById('clearCacheBtn').classList.remove('hidden');
         document.getElementById('restartQuizBtn').classList.remove('hidden');
         document.getElementById('exportJsonBtn').classList.remove('hidden');
