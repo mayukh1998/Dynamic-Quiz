@@ -158,7 +158,7 @@
         .export-btn { background: var(--success); color: var(--status-text); }
         .theme-btn { background: var(--secondary); font-size: 1.1em; padding: 8px 16px; }
         .api-key-btn { background: var(--purple); font-size: 1.2em; padding: 8px 12px; }
-        .notes-btn { background: var(--primary); color: white; } /* New Note button styling */
+        .notes-btn { background: var(--primary); color: white; } 
 
         /* Sync Status Indicator */
         .sync-status {
@@ -197,7 +197,6 @@
             padding: 30px; display: flex; flex-direction: column;
         }
         
-        /* Ensure Notes modal maps similarly to Review Modal but has its own space */
         .notes-modal {
             position: fixed; top: 5%; left: 50%; transform: translateX(-50%);
             width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; z-index: 1002;
@@ -244,6 +243,7 @@
             .q-text { font-size: 1.15em; }
             .header { justify-content: center; }
             .button-group { flex-direction: row; }
+            .notes-modal-header { flex-direction: column; align-items: flex-start; gap: 10px; }
         }
     </style>
 </head>
@@ -273,8 +273,11 @@
 <div id="notesOverlay" class="overlay hidden"></div>
 <div id="notesModal" class="card notes-modal hidden">
     <button id="closeNotesBtn" class="close-review-btn" title="Close Notes">&times;</button>
-    <h2 style="margin-top: 0; padding-right: 30px; color: var(--text);">Study Notes</h2>
-    <p style="color: var(--secondary); margin-top: 0;">Concise, auto-generated notes based on quiz explanations.</p>
+    <div class="notes-modal-header" style="display: flex; justify-content: space-between; align-items: center; padding-right: 40px;">
+        <h2 style="margin: 0; color: var(--text);">Study Notes</h2>
+        <button id="regenerateNotesBtn" class="action-btn" style="background: var(--purple); padding: 8px 16px; font-size: 14px; min-width: auto; flex: none;">🔄 Regenerate AI Notes</button>
+    </div>
+    <p style="color: var(--secondary); margin-top: 5px;">Concise, auto-generated notes based on quiz explanations.</p>
     <div id="notesContent" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px; font-size: 1.05em; line-height: 1.7; white-space: pre-wrap;"></div>
 </div>
 
@@ -356,13 +359,11 @@
     let curIdx = 0;
     let isEditingData = false;
     let appsScriptUrl = "";
-    let globalNotes = null; // New variable to store generated notes
+    let globalNotes = null;
 
-    // Helper for sleep/delays
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     document.addEventListener('DOMContentLoaded', () => {
-        // Theme logic
         const themeBtn = document.getElementById('themeToggleBtn');
         if (localStorage.getItem('quizTheme') === 'dark') {
             document.body.classList.add('dark-theme');
@@ -372,33 +373,28 @@
         }
         themeBtn.addEventListener('click', toggleTheme);
 
-        // Populate Config Data
         const savedUrl = localStorage.getItem('gasWebUrl');
         const savedApiKey = localStorage.getItem('geminiApiKey');
         if (savedUrl) document.getElementById('scriptUrlInput').value = savedUrl;
         if (savedApiKey) document.getElementById('geminiApiKeyInput').value = savedApiKey;
 
-        // Core Listeners
         document.getElementById('loadBtn').addEventListener('click', () => initiateLoad(true));
         document.getElementById('clearCacheBtn').addEventListener('click', unlinkDrive);
         document.getElementById('restartQuizBtn').addEventListener('click', restartQuiz);
         document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
         document.getElementById('copyQBtn').addEventListener('click', copyQuestion);
         
-        // Settings / Config Listeners
         document.getElementById('changeApiKeyBtn').addEventListener('click', changeApiKey);
         document.getElementById('checkAllBtn').addEventListener('click', checkAllWithGemini);
         
-        // Notes Feature Listeners
-        document.getElementById('notesBtn').addEventListener('click', handleNotesGeneration);
+        document.getElementById('notesBtn').addEventListener('click', () => handleNotesGeneration(false));
+        document.getElementById('regenerateNotesBtn').addEventListener('click', () => handleNotesGeneration(true));
         document.getElementById('closeNotesBtn').addEventListener('click', closeNotesModal);
 
-        // JSON Upload Listeners
         document.getElementById('reuploadBtn').addEventListener('click', showReuploadScreen);
         document.getElementById('saveNewJsonBtn').addEventListener('click', handleNewJsonSubmit);
         document.getElementById('cancelJsonBtn').addEventListener('click', cancelReupload);
         
-        // Quiz Interactions
         document.getElementById('submitBtn').addEventListener('click', submitAnswer);
         document.getElementById('nextBtn').addEventListener('click', nextQuestion);
         document.getElementById('markBtn').addEventListener('click', toggleMark);
@@ -406,11 +402,9 @@
         document.getElementById('saveDataBtn').addEventListener('click', saveEditedData);
         document.getElementById('cancelEditBtn').addEventListener('click', () => { isEditingData = false; renderQ(); });
 
-        // AI Integrations
         document.getElementById('geminiHelpBtn').addEventListener('click', fetchGeminiAnswer);
         document.getElementById('toggleExplanationBtn').addEventListener('click', toggleExplanation);
 
-        // Review Modal listeners
         document.getElementById('closeReviewBtn').addEventListener('click', closeReviewModal);
 
         if (savedUrl) initiateLoad(false);
@@ -436,7 +430,7 @@
         localStorage.removeItem('geminiApiKey');
         localStorage.removeItem('quizDataFull');
         localStorage.removeItem('quizProgress');
-        localStorage.removeItem('quizNotes'); // clear cached notes
+        localStorage.removeItem('quizNotes'); 
         location.reload();
     }
 
@@ -470,8 +464,6 @@
             indicator.innerText = '❌ Sync Failed';
         }
     }
-
-    // --- CLOUD SYNC LOGIC ---
 
     async function initiateLoad(isManual) {
         const urlInput = document.getElementById('scriptUrlInput').value.trim();
@@ -584,14 +576,12 @@
         localStorage.setItem('quizNotes', globalNotes || "");
     }
 
-    // --- HELPER FOR FORMATTING INDICES TO LETTERS ---
     function formatIndicesToLetters(indicesArray) {
         if (!indicesArray || indicesArray.length === 0) return "None";
         const letters = indicesArray.map(i => String.fromCharCode(65 + i)).join(', ');
         return indicesArray.length > 1 ? `Options ${letters}` : `Option ${letters}`;
     }
 
-    // --- CENTRALIZED GEMINI FALLBACK AND RETRY EXECUTOR ---
     async function executeGeminiRequest(prompt, apiKey) {
         let model = 'gemini-3.6-flash';
         
@@ -604,9 +594,7 @@
             })
         });
 
-        // Check if primary request returns status code 459
         if (response.status === 459) {
-            // Retry once with the primary model
             response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -616,7 +604,6 @@
                 })
             });
 
-            // If it fails again (either another 459 or other bad request status), switch context to the fallback model
             if (response.status === 459 || !response.ok) {
                 model = 'gemini-3-flash-preview';
                 response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
@@ -639,9 +626,8 @@
         return data.candidates[0].content.parts[0].text;
     }
 
-    // --- NOTES GENERATION MODAL LOGIC ---
-    async function handleNotesGeneration() {
-        if (globalNotes) {
+    async function handleNotesGeneration(force = false) {
+        if (globalNotes && !force) {
             renderNotesModal(globalNotes);
             return;
         }
@@ -661,8 +647,8 @@
 
         const combinedExplanations = explanations.join("\n\n");
 
-        const prompt = `You are a study assistant. Combine the following quiz explanations and summarize them into a highly concise, precise set of bullet points (use standard markdown bullet points). 
-Make the notes as short and concise as possible, keeping only crucial facts to easily remember.
+        const prompt = `You are an expert exam prep assistant. Combine the following quiz explanations and summarize them into a highly precise, concise set of study notes using standard markdown bullet points. 
+Crucial requirement: Identify and explicitly mark the core concepts, patterns, or facts most critical for passing the exam as **IMPORTANT**. Keep only crucial facts to easily remember.
 
 Return strictly a valid JSON object matching this schema:
 {
@@ -673,9 +659,14 @@ Explanations:
 ${combinedExplanations}`;
 
         const notesBtn = document.getElementById('notesBtn');
+        const regenBtn = document.getElementById('regenerateNotesBtn');
         const originalText = notesBtn.innerText;
+        const originalRegenText = regenBtn.innerText;
+        
         notesBtn.innerText = '⏳ Generating...';
         notesBtn.disabled = true;
+        regenBtn.innerText = '⏳ Generating...';
+        regenBtn.disabled = true;
 
         try {
             const rawOutput = await executeGeminiRequest(prompt, apiKey);
@@ -694,11 +685,12 @@ ${combinedExplanations}`;
         } finally {
             notesBtn.innerText = originalText;
             notesBtn.disabled = false;
+            regenBtn.innerText = originalRegenText;
+            regenBtn.disabled = false;
         }
     }
 
     function renderNotesModal(notesText) {
-        // Convert simple markdown strong formatting to HTML
         let htmlContent = notesText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         document.getElementById('notesContent').innerHTML = htmlContent;
         
@@ -711,8 +703,6 @@ ${combinedExplanations}`;
         document.getElementById('notesModal').classList.add('hidden');
     }
 
-
-    // --- AI BATCH CHECK ALL LOGIC ---
     async function checkAllWithGemini() {
         const apiKey = localStorage.getItem('geminiApiKey');
         if (!apiKey) {
@@ -819,7 +809,6 @@ ${batchPrompt}`;
             bar.style.width = `${Math.round((completed / total) * 100)}%`;
             text.innerText = `${completed} / ${total}`;
 
-            // Add a 15-second pause between batches to enforce the strictly capped 4 RPM limit.
             if (completed < total) {
                 for (let sec = 15; sec > 0; sec--) {
                     errorText.style.color = "var(--warning)";
@@ -850,7 +839,6 @@ ${batchPrompt}`;
         }
     }
 
-    // --- REVIEW MODAL LOGIC ---
     function showReviewModal(changes) {
         const overlay = document.getElementById('reviewOverlay');
         const modal = document.getElementById('reviewModal');
@@ -893,7 +881,6 @@ ${batchPrompt}`;
         document.getElementById('reviewModal').classList.add('hidden');
     }
 
-    // --- AI SINGLE QUESTION LOGIC ---
     async function fetchGeminiAnswer() {
         const apiKey = localStorage.getItem('geminiApiKey');
         if (!apiKey) {
@@ -979,9 +966,6 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         }
     }
 
-
-    // --- NEW JSON UPLOAD LOGIC ---
-
     function showReuploadScreen() {
         if(!confirm("Warning: Pasting new JSON will overwrite your current cloud file and reset all progress. Do you wish to continue?")) return;
         
@@ -1021,7 +1005,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
                 explanation: null
             }));
             curIdx = 0;
-            globalNotes = null; // Clear old notes when uploading new JSON
+            globalNotes = null; 
             
             document.getElementById('jsonInputScreen').classList.add('hidden');
             
@@ -1033,8 +1017,6 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
             console.error(e);
         }
     }
-
-    // --- CORE APP LOGIC ---
 
     function startApp() {
         document.getElementById('configScreen').classList.add('hidden');
@@ -1208,7 +1190,6 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         toggleExplanationBtn.innerText = "Show Explanation";
         explanationText.innerText = q.explanation ? q.explanation : ""; 
 
-        // Button Visibility
         const submitBtn = document.getElementById('submitBtn');
         const nextBtn = document.getElementById('nextBtn');
         const markBtn = document.getElementById('markBtn');
