@@ -126,8 +126,16 @@ async function initiateLoad(isManual) {
     appsScriptUrl = urlInput;
     if (geminiInput) localStorage.setItem('geminiApiKey', geminiInput);
 
-    const loadingMsg = document.getElementById('loadingMsg');
-    loadingMsg.classList.remove('hidden');
+    const loadProgressContainer = document.getElementById('loadProgressContainer');
+    const loadProgressText = document.getElementById('loadProgressText');
+    const loadProgressBar = document.getElementById('loadProgressBar');
+    const loadErrorText = document.getElementById('loadErrorText');
+    
+    // Reset Progress UI
+    loadProgressContainer.classList.remove('hidden');
+    loadErrorText.classList.add('hidden');
+    loadProgressBar.style.width = '10%';
+    loadProgressBar.style.backgroundColor = 'var(--primary)';
     document.getElementById('loadBtn').disabled = true;
 
     try {
@@ -139,24 +147,42 @@ async function initiateLoad(isManual) {
         }
 
         if (useLocalCache) {
-            loadingMsg.innerText = "⏳ Uploading local save to Google Drive...";
+            loadProgressText.innerHTML = "<span>⏳ Uploading local save to Google Drive...</span>";
+            loadProgressBar.style.width = '40%';
+            
             quizData = JSON.parse(cachedData);
             curIdx = parseInt(localStorage.getItem('quizProgress')) || 0;
             globalNotes = localStorage.getItem('quizNotes') || null;
             
             const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes };
-            await fetch(appsScriptUrl, {
+            
+            // Simulate waiting progress
+            setTimeout(() => { if (loadProgressBar.style.width !== '100%') loadProgressBar.style.width = '70%'; }, 1000);
+
+            const response = await fetch(appsScriptUrl, {
                 method: 'POST',
                 body: JSON.stringify(payload),
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' } 
             });
             
+            if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
+            
+            loadProgressBar.style.width = '100%';
             localStorage.setItem('gasWebUrl', appsScriptUrl);
-            startApp();
+            setTimeout(() => startApp(), 500); // Slight delay to let user see 100%
+            
         } else {
-            loadingMsg.innerText = "⏳ Fetching from Google Drive...";
+            loadProgressText.innerHTML = "<span>⏳ Fetching from Google Drive...</span>";
+            loadProgressBar.style.width = '35%';
+            
+            // Simulate waiting progress
+            setTimeout(() => { if (loadProgressBar.style.width !== '100%') loadProgressBar.style.width = '75%'; }, 1500);
+            
             const response = await fetch(appsScriptUrl);
+            if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
             const data = await response.json();
+            
+            loadProgressBar.style.width = '100%';
             
             let loadedQuizData = [];
             let loadedIdx = 0;
@@ -176,6 +202,9 @@ async function initiateLoad(isManual) {
                 document.getElementById('jsonScreenTitle').innerText = "Initialize Cloud File";
                 document.getElementById('jsonScreenDesc').innerText = "Your Google Drive file is currently empty. Paste your JSON array below to initialize it.";
                 document.getElementById('cancelJsonBtn').classList.add('hidden');
+                
+                // Hide progress bar for next time
+                setTimeout(() => loadProgressContainer.classList.add('hidden'), 500);
             } else {
                 quizData = loadedQuizData.map(q => ({ 
                     ...q,
@@ -189,15 +218,17 @@ async function initiateLoad(isManual) {
                 curIdx = loadedIdx;
                 saveState();
                 localStorage.setItem('gasWebUrl', appsScriptUrl);
-                startApp();
+                setTimeout(() => startApp(), 500);
             }
         }
     } catch (error) {
         console.error(error);
-        alert("Failed to communicate with Google Drive. Make sure the Web App URL is correct and deployed for 'Anyone'.");
+        loadProgressBar.style.width = '100%';
+        loadProgressBar.style.backgroundColor = 'var(--danger)';
+        loadProgressText.innerHTML = "<span style='color: var(--danger);'>❌ Connection Failed</span>";
+        loadErrorText.innerText = `Error: ${error.message || 'Failed to communicate with Google Drive.'} Please ensure your Web App URL is correct, deployed as 'Anyone', and you are connected to the internet.`;
+        loadErrorText.classList.remove('hidden');
     } finally {
-        loadingMsg.classList.add('hidden');
-        loadingMsg.innerText = "⏳ Communicating with Google Drive... "; 
         document.getElementById('loadBtn').disabled = false;
     }
 }
