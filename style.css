@@ -239,4 +239,7 @@ input:disabled { cursor: not-allowed; }
     .header { justify-content: center; }
     .button-group { flex-direction: row; }
     .notes-modal-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+    
+    /* ADD THIS NEW LINE: Stacks the meta header on mobile so nothing gets squished */
+    .q-meta { flex-direction: column; align-items: flex-start; gap: 12px; }
 }
