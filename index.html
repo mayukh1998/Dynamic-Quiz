@@ -4,23 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dynamic Quiz</title> 
-    <!-- Link to external CSS -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="">
 
 <div id="progressOverlay" class="overlay hidden"></div>
 <div id="progressModal" class="card progress-modal hidden">
     <h3 style="margin-top: 0;">Syncing...</h3>
     <p style="font-size: 0.9em; color: var(--secondary);">Processing sequentially in batches. Please do not close the page.</p>
     <div style="background: var(--border); border-radius: 8px; height: 20px; overflow: hidden; margin: 15px 0;">
-        <div id="progressBar" style="background: var(--success); width: 0%; height: 100%; transition: width 0.3s;"></div>
+        <!-- CHANGED: --success to --green -->
+        <div id="progressBar" style="background: var(--green); width: 0%; height: 100%; transition: width 0.3s;"></div>
     </div>
     <p id="progressText" style="font-weight: bold; color: var(--text);">0 / 0</p>
-    <p id="progressErrorText" style="color: var(--danger); font-weight: bold; font-size: 0.9em; margin-top: 10px; min-height: 20px;"></p>
+    <!-- CHANGED: --danger to --red -->
+    <p id="progressErrorText" style="color: var(--red); font-weight: bold; font-size: 0.9em; margin-top: 10px; min-height: 20px;"></p>
 </div>
 
-<!-- Review Changes Modal -->
+<!-- Review & Notes Modals -->
 <div id="reviewOverlay" class="overlay hidden"></div>
 <div id="reviewModal" class="card review-modal hidden">
     <button id="closeReviewBtn" class="close-review-btn" title="Close Review">&times;</button>
@@ -29,39 +33,42 @@
     <div id="reviewContent" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;"></div>
 </div>
 
-<!-- Notes Modal -->
 <div id="notesOverlay" class="overlay hidden"></div>
 <div id="notesModal" class="card notes-modal hidden">
     <button id="closeNotesBtn" class="close-review-btn" title="Close Notes">&times;</button>
     <div class="notes-modal-header" style="display: flex; justify-content: space-between; align-items: center; padding-right: 40px;">
         <h2 style="margin: 0; color: var(--text);">Study Notes</h2>
-        <button id="regenerateNotesBtn" class="action-btn" style="background: var(--purple); padding: 8px 16px; font-size: 14px; min-width: auto; flex: none;">🔄 Regenerate AI Notes</button>
+        <button id="regenerateNotesBtn" class="action-btn" style="background: var(--purple); padding: 8px 16px; font-size: 14px; min-width: auto; flex: none;">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> Regenerate
+        </button>
     </div>
     <p style="color: var(--secondary); margin-top: 5px;">Concise, auto-generated notes based on quiz explanations.</p>
     <div id="notesContent" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px; font-size: 1.05em; line-height: 1.7; white-space: pre-wrap;"></div>
 </div>
 
-<div class="header">
-    <div id="syncIndicator" class="sync-status hidden">☁️ Cloud Synced</div>
-    <button id="themeToggleBtn" class="top-btn theme-btn" title="Toggle Theme">🌙</button>
-    <button id="changeApiKeyBtn" class="top-btn api-key-btn hidden" title="Change API Key">🔑</button>
-    <button id="checkAllBtn" class="top-btn hidden" title="Check All Questions with AI" style="background: var(--purple);">⭐ Check All</button>
-    <button id="notesBtn" class="top-btn notes-btn hidden" title="Generate AI Study Notes">📝 Notes</button>
-    <!-- Fixed "New JSON" button size by removing 'theme-btn' class -->
-    <button id="reuploadBtn" class="top-btn hidden" title="Upload New JSON" style="background: var(--primary);">📂 New JSON</button>
-    <button id="exportJsonBtn" class="top-btn export-btn hidden">Copy JSON</button>
-    <button id="restartQuizBtn" class="top-btn restart-btn hidden">Restart Quiz</button>
-    <button id="clearCacheBtn" class="top-btn clear-btn hidden">Unlink Services</button>
-</div>
-
+<!-- Configuration Screens -->
 <div id="configScreen" class="config-container card">
-    <h2>Connect Integrations</h2>
-    <p>Paste your Google Apps Script URL for cloud saving, and your Gemini API Key for AI features.</p>
-    <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key (Optional but required for ✨ features)">
-    <button id="loadBtn" class="action-btn">Load System</button>
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 35px;">
+        <div>
+            <h2 style="margin: 0 0 10px 0;">Connect Integrations</h2>
+            <p style="margin: 0; color: var(--secondary);">Paste your Google Apps Script URL for cloud saving, and your Gemini API Key for AI features.</p>
+        </div>
+        <!-- Theme Toggle for the Connect Screen -->
+        <button id="themeToggleBtnConfig" class="icon-btn" title="Toggle Theme" style="flex-shrink: 0; margin-left: 15px;">
+            <!-- SVG injected by JS -->
+        </button>
+    </div>
     
-    <!-- New Progress Bar Container -->
+    <!-- WRAPPED INPUTS TO FORCE PERFECT SPACING -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+        <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec" style="margin: 0;">
+        <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key (Optional)" style="margin: 0;">
+    </div>
+    
+    <div style="display: flex; justify-content: flex-end; margin-top: 25px;">
+        <button id="loadBtn" class="action-btn" style="min-width: 150px;">Load</button>
+    </div>
+    
     <div id="loadProgressContainer" class="hidden" style="margin-top: 25px; padding: 15px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
         <p id="loadProgressText" style="color: var(--primary); font-weight: bold; margin: 0 0 12px 0; display: flex; justify-content: space-between;">
             <span>⏳ Communicating with Google Drive...</span>
@@ -69,41 +76,26 @@
         <div style="background: var(--border); border-radius: 8px; height: 14px; overflow: hidden; width: 100%;">
             <div id="loadProgressBar" style="background: var(--primary); width: 0%; height: 100%; transition: width 0.5s ease-out, background-color 0.3s ease;"></div>
         </div>
-        <p id="loadErrorText" class="hidden" style="color: var(--danger); font-size: 0.9em; font-weight: 600; margin: 12px 0 0 0;"></p>
+        <p id="loadErrorText" class="hidden" style="color: var(--red); font-size: 0.9em; font-weight: 600; margin: 12px 0 0 0;"></p>
     </div>
 
     <!-- Setup Guide Section -->
-    <div class="guide-section" style="margin: 25px 0 10px 0; padding: 15px; background: var(--edit-bg); border: 1px dashed var(--warning); border-radius: 8px; font-size: 0.95em;">
+    <div class="guide-section" style="margin: 35px 0 10px 0; padding: 15px; background: var(--edit-bg); border: 1px dashed var(--warning); border-radius: 8px; font-size: 0.95em;">
         <details>
             <summary style="font-weight: bold; cursor: pointer; color: var(--primary-hover); outline: none;">📖 How to setup Google Apps Script & JSON Format</summary>
             <div style="margin-top: 15px; color: var(--text);">
-                <h4 style="margin-top: 0;">1. Google Apps Script Setup</h4>
+                <h4 style="margin-top: 0;">Google Apps Script Setup</h4>
                 <ol style="padding-left: 20px; line-height: 1.6;">
                     <li>Create a blank text file in your Google Drive. Right-click it, select <strong>Share</strong>, and set general access to <strong>Anyone with the link</strong>.</li>
-                    <li>Copy the <strong>File ID</strong> from the sharing link (the long string of characters between <code>/d/</code> and <code>/view</code>).</li>
+                    <li>Copy the <strong>File ID</strong> from the sharing link.</li>
                     <li>Go to <a href="https://script.google.com" target="_blank" style="color: var(--primary);">script.google.com</a> and click <strong>New Project</strong>.</li>
                     <li>Open this <a href="https://docs.google.com/document/d/16jmzlkyOZBvo28CyPSjJifSOuhsWieFGZusJhTzh8Yg/edit?usp=drivesdk" target="_blank" style="color: var(--primary);"><strong>Sample Google Script</strong></a>, copy its contents, and paste it into your new Apps Script project.</li>
-                    <li>Inside the script editor, locate the variable for the File ID and replace it with the one you copied in Step 2.</li>
+                    <li>Inside the script editor, locate the variable for the File ID and replace it.</li>
                     <li>Click <strong>Deploy</strong> &gt; <strong>New deployment</strong> in the top right.</li>
                     <li>Select the gear icon and choose <strong>Web app</strong>.</li>
                     <li>Set <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to <strong>Anyone</strong>.</li>
                     <li>Click <strong>Deploy</strong>, copy the resulting <strong>Web app URL</strong>, and paste it in the input above.</li>
                 </ol>
-                
-                <h4>2. JSON Question Format Example</h4>
-                <p>Your quiz data must be a JSON array of objects. Use 0-based indexing for <code>correctAnswers</code> (e.g., 0 is the first option). The app supports multiple correct answers.</p>
-                <pre style="background: var(--card-bg); padding: 12px; border: 1px solid var(--border); border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 0.9em;">[
-  {
-    "question": "What is the capital of France?",
-    "options": ["Berlin", "London", "Paris", "Rome"],
-    "correctAnswers": [2]
-  },
-  {
-    "question": "Which of these are primary colors?",
-    "options": ["Red", "Green", "Blue", "Yellow"],
-    "correctAnswers": [0, 2]
-  }
-]</pre>
             </div>
         </details>
     </div>
@@ -112,77 +104,142 @@
 <div id="jsonInputScreen" class="config-container card hidden">
     <h2 id="jsonScreenTitle">Upload Quiz Data</h2>
     <p id="jsonScreenDesc">Paste your JSON array of questions here:</p>
-    <textarea id="jsonInput" placeholder='[
-  {
-    "question": "What is the capital of France?",
-    "options": ["Berlin", "London", "Paris", "Rome"],
-    "correctAnswers": [2]
-  }
-]'></textarea>
+    <textarea id="jsonInput" placeholder='[ { "question": "What is the capital of France?", "options": ["Berlin", "London", "Paris", "Rome"], "correctAnswers": [2] } ]'></textarea>
     <div class="button-group" style="margin-top: 0;">
         <button id="saveNewJsonBtn" class="action-btn">Save to Cloud & Start</button>
         <button id="cancelJsonBtn" class="action-btn btn-warning hidden">Cancel</button>
     </div>
 </div>
 
+<!-- Main App UI -->
 <div id="quizApp" class="app-wrapper hidden">
-    <div class="sidebar card">
-        <h3>Quiz Progress</h3>
-        <div id="navGrid" class="nav-grid"></div>
+    
+    <!-- LEFT COLUMN -->
+    <div class="left-column">
+        <!-- Status Header -->
+        <div class="card status-card">
+            <div class="status-left">
+                <svg viewBox="0 0 24 24" width="28" height="28" stroke="var(--secondary)" stroke-width="2" fill="none"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path></svg>
+                <div class="status-text">
+                    <div class="status-title">Drive Sync Status</div>
+                    <div id="syncIndicator" class="sync-status">Active & Connected <span class="dot success-dot"></span></div>
+                </div>
+            </div>
+            <div class="status-right">
+                <button id="themeToggleBtn" class="icon-btn" title="Toggle Theme">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
+                <button id="changeApiKeyBtn" class="icon-btn" title="Change API Key">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress Sidebar -->
+        <div class="card sidebar-card">
+            <h3 class="sidebar-header">Quiz Progress <span id="progressMeta" style="color: var(--secondary); font-weight: normal; font-size: 0.9em;">(0/0)</span></h3>
+            <div id="navGrid" class="nav-grid"></div>
+        </div>
     </div>
 
-    <div class="main-content card">
-        <h3 id="qMeta" class="q-meta">
-            <span id="qCount"></span>
-            <div class="score-container">
-                <span id="qScore"></span>
-                <button id="editPenBtn" class="copy-btn" title="Edit Question & Options">✏️</button>
-                <button id="geminiHelpBtn" class="copy-btn" title="Ask AI to verify answer & explain">✨</button>
-                <button id="copyQBtn" class="copy-btn" title="Copy Question to Clipboard">📋</button>
+    <!-- RIGHT COLUMN -->
+    <div class="right-column">
+        <!-- Action Buttons Grid -->
+        <div class="card actions-card">
+            <div class="actions-grid">
+                <!-- Check All Button now uses Star/Sparkle SVG -->
+                <button id="checkAllBtn" class="grid-btn btn-indigo">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9.5 2L12 8.5 18.5 11 12 13.5 9.5 20 7 13.5 0.5 11 7 8.5z"></path><path d="M19 2l1.5 3.5 3.5 1.5-3.5 1.5L19 12l-1.5-3.5L14 7l3.5-1.5z"></path>
+                    </svg> Check All
+                </button>
+                <button id="notesBtn" class="grid-btn btn-purple">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> Notes
+                </button>
+                <button id="reuploadBtn" class="grid-btn btn-blue">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> New JSON
+                </button>
+                <button id="exportJsonBtn" class="grid-btn btn-teal">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy JSON
+                </button>
+                <button id="restartQuizBtn" class="grid-btn btn-yellow">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg> Restart Quiz
+                </button>
+                <button id="clearCacheBtn" class="grid-btn btn-red">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg> Unlink Services
+                </button>
             </div>
-        </h3>
-        
-        <!-- Standard Question View -->
-        <div id="qText" class="q-text"></div>
-        
-        <!-- Missing Data Warning -->
-        <div id="missingAnswerWarning" class="hidden" style="padding: 12px; margin-bottom: 20px; background: var(--error-bg); color: var(--error); border: 1px solid var(--error); border-radius: 8px; font-weight: 600; font-size: 0.95em;">
-            <!-- Message set dynamically via JS -->
-        </div>
-        
-        <!-- Standard Options View -->
-        <div id="options" class="options-container"></div>
-        
-        <!-- INLINE EDIT FORM -->
-        <div id="editFormContainer" class="edit-form-container hidden">
-            <label style="font-weight:bold; color: var(--text);">Question Text:</label>
-            <textarea id="editQTextInput" style="height: 100px; margin-top: 8px; font-size:16px;"></textarea>
-            
-            <label style="font-weight:bold; color: var(--text); margin-top: 15px; display: block;">Options (Check the correct answers):</label>
-            <div id="editOptionsList" style="margin-top: 10px;"></div>
-            
-            <button id="addOptionBtn" class="action-btn" style="background: var(--secondary); padding: 8px 16px; font-size: 14px; margin-top: 10px; min-width: auto; flex: none;">+ Add Option</button>
         </div>
 
-        <div id="explanationContainer" class="explanation-box">
-            <button id="toggleExplanationBtn" class="explanation-toggle">Show Explanation</button>
-            <div id="explanationText" class="explanation-content hidden"></div>
-        </div>
+        <!-- Main Quiz Content -->
+        <div class="card quiz-card">
+            <!-- Meta Header -->
+            <div class="q-meta">
+                <div id="qMetaText" class="meta-left">Score: 0 &middot; Question: 1</div>
+                <div class="meta-right">
+                    <button id="editPenBtn" class="icon-btn" title="Edit Question & Options">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                    </button>
+                    <!-- Ask AI Button now uses Star/Sparkle SVG -->
+                    <button id="geminiHelpBtn" class="icon-btn" title="Ask AI to verify answer & explain">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9.5 2L12 8.5 18.5 11 12 13.5 9.5 20 7 13.5 0.5 11 7 8.5z"></path><path d="M19 2l1.5 3.5 3.5 1.5-3.5 1.5L19 12l-1.5-3.5L14 7l3.5-1.5z"></path>
+                        </svg>
+                    </button>
+                    <button id="copyQBtn" class="icon-btn" title="Copy Question to Clipboard">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div id="qText" class="q-text"></div>
+            
+            <div id="missingAnswerWarning" class="hidden warning-banner"></div>
+            
+            <div id="options" class="options-container"></div>
+            
+            <div id="editFormContainer" class="edit-form-container hidden">
+                <label style="font-weight:bold; color: var(--text);">Question Text:</label>
+                <textarea id="editQTextInput" style="height: 100px; margin-top: 8px; font-size:16px;"></textarea>
+                
+                <label style="font-weight:bold; color: var(--text); margin-top: 15px; display: block;">Options (Check the correct answers):</label>
+                <div id="editOptionsList" style="margin-top: 10px;"></div>
+                
+                <button id="addOptionBtn" class="action-btn" style="background: var(--secondary); padding: 8px 16px; font-size: 14px; margin-top: 10px; min-width: auto; flex: none;">+ Add Option</button>
+            </div>
 
-        <div class="button-group">
-            <button id="submitBtn" class="action-btn">Submit</button>
-            <button id="nextBtn" class="action-btn hidden">Next</button>
-            
-            <button id="markBtn" class="action-btn btn-mark hidden">Mark Question</button>
-            
-            <button id="fixJsonBtn" class="action-btn btn-warning hidden">✏️ Edit Question</button>
-            <button id="saveDataBtn" class="action-btn btn-warning hidden" style="background: var(--warning); color: #000;">Save Changes</button>
-            <button id="cancelEditBtn" class="action-btn btn-warning hidden" style="background: var(--secondary); color: white;">Cancel</button>
+            <!-- Explanation Box -->
+            <div id="explanationContainer" class="explanation-box hidden">
+                <button id="toggleExplanationBtn" class="explanation-toggle">
+                    <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    <span>Show Explanation</span>
+                </button>
+                <div id="explanationText" class="explanation-content"></div>
+            </div>
+
+            <!-- Bottom Action Buttons -->
+            <div class="bottom-actions">
+                <button id="submitBtn" class="btn-primary">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Submit Answer
+                </button>
+                <button id="nextBtn" class="btn-green hidden">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Next Question
+                </button>
+                <button id="markBtn" class="btn-purple hidden">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Mark Question
+                </button>
+                <button id="fixJsonBtn" class="btn-red hidden">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg> Edit Question
+                </button>
+                <button id="saveDataBtn" class="btn-green hidden">
+                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Save Changes
+                </button>
+                <button id="cancelEditBtn" class="btn-red hidden">Cancel</button>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Link to external JavaScript -->
 <script src="script.js"></script>
 </body>
 </html>

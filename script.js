@@ -3,21 +3,32 @@ let curIdx = 0;
 let isEditingQuestion = false;
 let appsScriptUrl = "";
 let globalNotes = null;
-// Temporary state for the inline editor
 let tempEditOptions = [];
 let tempEditAnswers = [];
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// SVG Icons for the Theme Toggle
+const sunSvg = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`;
+const moonSvg = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
+
 document.addEventListener('DOMContentLoaded', () => {
     const themeBtn = document.getElementById('themeToggleBtn');
-    if (localStorage.getItem('quizTheme') === 'dark') {
-        document.body.classList.add('dark-theme');
-        themeBtn.innerText = '☀️';
+    const configThemeBtn = document.getElementById('themeToggleBtnConfig');
+    
+    // Initialize Theme
+    if (localStorage.getItem('quizTheme') === 'light') {
+        document.body.classList.remove('dark-theme');
+        if (themeBtn) themeBtn.innerHTML = moonSvg; 
+        if (configThemeBtn) configThemeBtn.innerHTML = moonSvg;
     } else {
-        themeBtn.innerText = '🌙';
+        document.body.classList.add('dark-theme');
+        if (themeBtn) themeBtn.innerHTML = sunSvg; 
+        if (configThemeBtn) configThemeBtn.innerHTML = sunSvg;
     }
-    themeBtn.addEventListener('click', toggleTheme);
+    
+    if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+    if (configThemeBtn) configThemeBtn.addEventListener('click', toggleTheme);
 
     const savedUrl = localStorage.getItem('gasWebUrl');
     const savedApiKey = localStorage.getItem('geminiApiKey');
@@ -59,18 +70,26 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedUrl) initiateLoad(false);
 });
 
-function toggleTheme() {
-    const body = document.body;
-    body.classList.toggle('dark-theme');
-    const btn = document.getElementById('themeToggleBtn');
+function setTheme(isDark) {
+    const themeBtn = document.getElementById('themeToggleBtn');
+    const configThemeBtn = document.getElementById('themeToggleBtnConfig');
     
-    if (body.classList.contains('dark-theme')) {
+    if (isDark) {
+        document.body.classList.add('dark-theme');
         localStorage.setItem('quizTheme', 'dark');
-        btn.innerText = '☀️';
+        if (themeBtn) themeBtn.innerHTML = sunSvg;
+        if (configThemeBtn) configThemeBtn.innerHTML = sunSvg;
     } else {
+        document.body.classList.remove('dark-theme');
         localStorage.setItem('quizTheme', 'light');
-        btn.innerText = '🌙';
+        if (themeBtn) themeBtn.innerHTML = moonSvg;
+        if (configThemeBtn) configThemeBtn.innerHTML = moonSvg;
     }
+}
+
+function toggleTheme() {
+    const isDark = !document.body.classList.contains('dark-theme');
+    setTheme(isDark);
 }
 
 function unlinkDrive() {
@@ -80,6 +99,7 @@ function unlinkDrive() {
     localStorage.removeItem('quizDataFull');
     localStorage.removeItem('quizProgress');
     localStorage.removeItem('quizNotes'); 
+    localStorage.removeItem('checkAllProgress');
     location.reload();
 }
 
@@ -102,15 +122,11 @@ function changeApiKey() {
 function updateSyncStatus(status) {
     const indicator = document.getElementById('syncIndicator');
     if(status === 'saving') {
-        indicator.className = 'sync-status sync-active';
-        indicator.innerText = '🔄 Saving to Drive...';
+        indicator.innerHTML = 'Saving to Drive... <span class="dot warning-dot"></span>';
     } else if (status === 'success') {
-        indicator.className = 'sync-status sync-success';
-        indicator.innerText = '☁️ Synced to Drive';
+        indicator.innerHTML = 'Active & Connected <span class="dot success-dot"></span>';
     } else if (status === 'error') {
-        indicator.className = 'sync-status';
-        indicator.style.color = 'var(--danger)';
-        indicator.innerText = '❌ Sync Failed';
+        indicator.innerHTML = 'Sync Failed <span class="dot error-dot"></span>';
     }
 }
 
@@ -132,17 +148,13 @@ async function initiateLoad(isManual) {
     const loadErrorText = document.getElementById('loadErrorText');
     const loadBtn = document.getElementById('loadBtn');
     
-    // 1. Show the Progress UI instantly
     loadProgressContainer.classList.remove('hidden');
     loadErrorText.classList.add('hidden');
     loadProgressBar.style.width = '15%';
-    loadProgressBar.style.backgroundColor = 'var(--primary)';
+    loadProgressBar.style.backgroundColor = 'var(--indigo)';
     loadProgressText.innerHTML = "<span>⏳ Preparing...</span>";
     loadBtn.disabled = true;
 
-    // 2. CRITICAL FIX: Force the browser to render the progress bar BEFORE doing anything else.
-    // Without this brief delay, the browser freezes to show the confirm() popup or fetch data 
-    // before it has a chance to visually draw the bar on your screen!
     await delay(150); 
 
     try {
@@ -174,10 +186,9 @@ async function initiateLoad(isManual) {
             if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
             
             loadProgressBar.style.width = '100%';
-            loadProgressText.innerHTML = "<span style='color: var(--success);'>✅ Cloud Sync Complete!</span>";
+            loadProgressText.innerHTML = "<span style='color: var(--green);'>✅ Cloud Sync Complete!</span>";
             localStorage.setItem('gasWebUrl', appsScriptUrl);
             
-            // Give user time to see 100% completion before screen switches
             await delay(600);
             startApp();
             
@@ -192,7 +203,7 @@ async function initiateLoad(isManual) {
             const data = await response.json();
             
             loadProgressBar.style.width = '100%';
-            loadProgressText.innerHTML = "<span style='color: var(--success);'>✅ Data Fetched!</span>";
+            loadProgressText.innerHTML = "<span style='color: var(--green);'>✅ Data Fetched!</span>";
             
             let loadedQuizData = [];
             let loadedIdx = 0;
@@ -205,7 +216,6 @@ async function initiateLoad(isManual) {
                 globalNotes = data.quizNotes || null; 
             }
 
-            // Give user time to see 100% completion before screen switches
             await delay(600);
 
             if (loadedQuizData.length === 0) {
@@ -236,9 +246,9 @@ async function initiateLoad(isManual) {
     } catch (error) {
         console.error(error);
         loadProgressBar.style.width = '100%';
-        loadProgressBar.style.backgroundColor = 'var(--danger)';
-        loadProgressText.innerHTML = "<span style='color: var(--danger);'>❌ Connection Failed</span>";
-        loadErrorText.innerText = `Error: ${error.message || 'Failed to communicate with Google Drive.'} Please ensure your Web App URL is correct, deployed as 'Anyone', and you are connected to the internet.`;
+        loadProgressBar.style.backgroundColor = 'var(--red)';
+        loadProgressText.innerHTML = "<span style='color: var(--red);'>❌ Connection Failed</span>";
+        loadErrorText.innerText = `Error: ${error.message || 'Failed to communicate.'}`;
         loadErrorText.classList.remove('hidden');
     } finally {
         loadBtn.disabled = false;
@@ -278,7 +288,6 @@ function formatIndicesToLetters(indicesArray) {
 
 async function executeGeminiRequest(prompt, apiKey) {
     let model = 'gemini-3.6-flash';
-    
     let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -288,7 +297,8 @@ async function executeGeminiRequest(prompt, apiKey) {
         })
     });
 
-    if (response.status === 459) {
+    if (response.status === 459 || !response.ok) {
+        model = 'gemini-3-flash-preview';
         response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -297,18 +307,6 @@ async function executeGeminiRequest(prompt, apiKey) {
                 generationConfig: { response_mime_type: "application/json" }
             })
         });
-
-        if (response.status === 459 || !response.ok) {
-            model = 'gemini-3-flash-preview';
-            response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { response_mime_type: "application/json" }
-                })
-            });
-        }
     }
 
     if (!response.ok) {
@@ -325,41 +323,28 @@ async function handleNotesGeneration(force = false) {
         renderNotesModal(globalNotes);
         return;
     }
-
     const apiKey = localStorage.getItem('geminiApiKey');
     if (!apiKey) {
-        alert("No API key found. Please click the '🔑' button at the top to add your API Key to generate notes.");
+        alert("No API key found. Please click the key icon to add it.");
         return;
     }
 
     const explanations = quizData.map(q => q.explanation).filter(exp => exp && exp.trim() !== "");
-    
     if (explanations.length === 0) {
-        alert("No explanations found in the quiz data. Please generate explanations using AI (✨ or ⭐ Check All) first.");
+        alert("No explanations found. Please generate explanations using AI first.");
         return;
     }
 
     const combinedExplanations = explanations.join("\n\n");
-
-    const prompt = `You are an expert exam prep assistant. Combine the following quiz explanations and summarize them into a highly precise, concise set of study notes using standard markdown bullet points. 
-Crucial requirement: Identify and explicitly mark the core concepts, patterns, or facts most critical for passing the exam as **IMPORTANT**. Keep only crucial facts to easily remember.
-
-Return strictly a valid JSON object matching this schema:
-{
-"notes": "string (your formatted markdown bullet points)"
-}
-
-Explanations:
-${combinedExplanations}`;
+    const prompt = `You are an expert exam prep assistant. Combine the following quiz explanations and synthesize them into a highly organized, beautifully formatted study guide. \n\nFORMATTING RULES:\n1. Use clear Markdown Headings (### Topic Name) to group similar concepts logically.\n2. Use bullet points (-) for key facts under each heading.\n3. Bold (**text**) the most critical terms, tool names, or formulas.\n4. Keep explanations incredibly concise and punchy. No fluff.\n\nReturn strictly a valid JSON object matching this schema:\n{\n"notes": "string (your formatted markdown string containing headers, bullets, and bold text)"\n}\n\nExplanations:\n${combinedExplanations}`;
 
     const notesBtn = document.getElementById('notesBtn');
     const regenBtn = document.getElementById('regenerateNotesBtn');
-    const originalText = notesBtn.innerText;
-    const originalRegenText = regenBtn.innerText;
+    const originalText = notesBtn.innerHTML;
     
-    notesBtn.innerText = '⏳ Generating...';
+    notesBtn.innerHTML = '⏳ Generating...';
     notesBtn.disabled = true;
-    regenBtn.innerText = '⏳ Generating...';
+    regenBtn.innerHTML = '⏳ Generating...';
     regenBtn.disabled = true;
 
     try {
@@ -377,9 +362,9 @@ ${combinedExplanations}`;
         console.error("Notes Generation Error:", err);
         alert(`Failed to generate notes: ${err.message}`);
     } finally {
-        notesBtn.innerText = originalText;
+        notesBtn.innerHTML = originalText;
         notesBtn.disabled = false;
-        regenBtn.innerText = originalRegenText;
+        regenBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2L12 8.5 18.5 11 12 13.5 9.5 20 7 13.5 0.5 11 7 8.5z"></path><path d="M19 2l1.5 3.5 3.5 1.5-3.5 1.5L19 12l-1.5-3.5L14 7l3.5-1.5z"></path></svg> Regenerate';
         regenBtn.disabled = false;
     }
 }
@@ -387,7 +372,6 @@ ${combinedExplanations}`;
 function renderNotesModal(notesText) {
     let htmlContent = notesText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     document.getElementById('notesContent').innerHTML = htmlContent;
-    
     document.getElementById('notesOverlay').classList.remove('hidden');
     document.getElementById('notesModal').classList.remove('hidden');
 }
@@ -400,11 +384,23 @@ function closeNotesModal() {
 async function checkAllWithGemini() {
     const apiKey = localStorage.getItem('geminiApiKey');
     if (!apiKey) {
-        alert("No API key found. Please click the '🔑' button at the top to add your API Key.");
+        alert("No API key found. Please click the key icon to add it.");
         return;
     }
 
-    if(!confirm("Are you sure you want to proceed? This will check ALL questions in batches to respect free tier limits and automatically update JSON data. It may take some time depending on quiz length.")) return;
+    const total = quizData.length;
+    let savedProgress = parseInt(localStorage.getItem('checkAllProgress')) || 0;
+    
+    if (savedProgress >= total) {
+        savedProgress = 0;
+    }
+
+    let confirmMsg = "Are you sure you want to proceed? This will check ALL questions in batches. It may take some time depending on quiz length.";
+    if (savedProgress > 0) {
+        confirmMsg = `Resume pending AI check from question ${savedProgress + 1}?\n\nClick OK to continue where you left off.`;
+    }
+
+    if(!confirm(confirmMsg)) return;
 
     const overlay = document.getElementById('progressOverlay');
     const modal = document.getElementById('progressModal');
@@ -415,44 +411,33 @@ async function checkAllWithGemini() {
     overlay.classList.remove('hidden');
     modal.classList.remove('hidden');
 
-    let completed = 0;
-    const total = quizData.length;
-    bar.style.width = '0%';
-    text.innerText = `0 / ${total}`;
+    let completed = savedProgress;
+    bar.style.width = `${Math.round((completed / total) * 100)}%`;
+    text.innerText = `${completed} / ${total}`;
     errorText.innerText = "";
+
+    // DOUBLE YIELD: Guarantees the browser paints the modal before loop starts
+    await delay(50);
+    void modal.offsetWidth; 
+    await delay(300); 
 
     let dataUpdated = false;
     let changedQuestions = [];
     const batchSize = 20;
 
-    for (let i = 0; i < total; i += batchSize) {
+    for (let i = savedProgress; i < total; i += batchSize) {
         const batch = quizData.slice(i, i + batchSize);
-        
         const batchPrompt = batch.map((q, idx) => {
-            const optionsString = (q.options || []).length > 0 
-                ? q.options.map((opt, oIdx) => `[Index ${oIdx}]: ${opt}`).join('\n')
-                : "No options provided.";
+            const optionsString = (q.options || []).length > 0 ? q.options.map((opt, oIdx) => `[Index ${oIdx}]: ${opt}`).join('\n') : "No options provided.";
             return `Question ID: ${i + idx}\nQuestion: ${q.question}\nOptions:\n${optionsString}`;
         }).join('\n\n');
 
-        const prompt = `You are a technical quiz assistant. Given the following batch of questions, return the correct option index (or indices if multiple) and a brief explanation (max 400 characters) for each. If a question is entirely missing options, return an empty array for correctAnswers.
-
-Return strictly a valid JSON array of objects matching this schema, exactly in the order the questions were provided, no markdown blocks:
-[
-{
-"correctAnswers": [number, ...],
-"explanation": "string (under 400 chars)"
-}
-]
-
-Questions:
-${batchPrompt}`;
+        const prompt = `You are a technical quiz assistant. Given the following batch of questions, return the correct option index (or indices if multiple) and an explanation (max 600 chars) for each. The explanation MUST explicitly state why the correct answer is right AND briefly point out why the other provided options are incorrect. If a question is entirely missing options, return an empty array for correctAnswers.\nReturn strictly a valid JSON array of objects matching this schema, exactly in the order the questions were provided, no markdown blocks:\n[\n{\n"correctAnswers": [number, ...],\n"explanation": "string (under 600 chars)"\n}\n]\n\nQuestions:\n${batchPrompt}`;
 
         let success = false;
         while (!success) {
             try {
                 errorText.innerText = "";
-                
                 const rawOutput = await executeGeminiRequest(prompt, apiKey);
                 const results = JSON.parse(rawOutput);
 
@@ -468,11 +453,8 @@ ${batchPrompt}`;
 
                     if (!isSame && (q.options || []).length > 0) {
                         changedQuestions.push({
-                            index: i + idx,
-                            question: q.question,
-                            options: q.options || [],
-                            oldAnswers: [...oldAnswers],
-                            newAnswers: [...newAnswers]
+                            index: i + idx, question: q.question, options: q.options || [],
+                            oldAnswers: [...oldAnswers], newAnswers: [...newAnswers]
                         });
 
                         q.correctAnswers = newAnswers;
@@ -482,18 +464,16 @@ ${batchPrompt}`;
                         }
                         dataUpdated = true;
                     }
-                    
                     if (q.explanation !== result.explanation) {
                         q.explanation = result.explanation;
                         dataUpdated = true; 
                     }
                 });
-                
                 success = true; 
             } catch (err) {
                 console.error("Batch Check Error:", err);
                 for(let sec = 60; sec > 0; sec--) {
-                    errorText.style.color = "var(--danger)";
+                    errorText.style.color = "var(--red)";
                     errorText.innerText = `Request failed (${err.message}). Retrying in ${sec}s...`;
                     await delay(1000);
                 }
@@ -502,74 +482,64 @@ ${batchPrompt}`;
         }
 
         completed += batch.length;
+        
+        localStorage.setItem('checkAllProgress', completed);
+        if (dataUpdated) {
+            await syncStateToDrive(); 
+            dataUpdated = false; 
+        } else {
+            saveState(); 
+        }
+
         bar.style.width = `${Math.round((completed / total) * 100)}%`;
         text.innerText = `${completed} / ${total}`;
 
         if (completed < total) {
             for (let sec = 15; sec > 0; sec--) {
-                errorText.style.color = "var(--warning)";
+                errorText.style.color = "var(--yellow)";
                 errorText.innerText = `Rate limit: Waiting ${sec}s before next batch...`;
                 await delay(1000);
             }
-            errorText.style.color = "var(--danger)";
+            errorText.style.color = "var(--red)";
             errorText.innerText = "";
         }
     }
 
+    localStorage.removeItem('checkAllProgress');
+
     overlay.classList.add('hidden');
     modal.classList.add('hidden');
-
-    if (dataUpdated) {
-        syncStateToDrive();
-    } else {
-        saveState();
-    }
     
     renderQ();
     renderSidebar();
     
-    if (changedQuestions.length > 0) {
-        showReviewModal(changedQuestions);
-    } else {
-        alert("Answers and explanations have been successfully synced! No correct answers needed to be updated.");
-    }
+    if (changedQuestions.length > 0) showReviewModal(changedQuestions);
+    else alert("Answers and explanations have been successfully synced!");
 }
 
 function showReviewModal(changes) {
-    const overlay = document.getElementById('reviewOverlay');
-    const modal = document.getElementById('reviewModal');
     const content = document.getElementById('reviewContent');
-    
     content.innerHTML = '';
-    
     changes.forEach(change => {
         const oldText = change.oldAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
         const newText = change.newAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
-        
         const div = document.createElement('div');
-        div.style.padding = '20px';
-        div.style.border = '1px solid var(--border)';
-        div.style.borderRadius = '8px';
-        div.style.background = 'var(--bg)';
-        
+        div.style.padding = '20px'; div.style.border = '1px solid var(--border)';
+        div.style.borderRadius = '8px'; div.style.background = 'var(--bg)';
         div.innerHTML = `
             <p style="font-weight: 600; margin-top: 0; font-size: 1.1em; color: var(--text);">Question ${change.index + 1}: ${change.question}</p>
             <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px;">
-                <div style="flex: 1; min-width: 200px; padding: 15px; background: var(--error-bg); border-radius: 6px; border: 1px solid var(--error); color: var(--status-text);">
-                    <strong style="display: block; margin-bottom: 8px;">Old Answer: ${formatIndicesToLetters(change.oldAnswers)}</strong>
-                    ${oldText}
+                <div style="flex: 1; min-width: 200px; padding: 15px; background: rgba(239, 68, 68, 0.15); border-radius: 6px; border: 1px solid var(--red); color: var(--text);">
+                    <strong style="display: block; margin-bottom: 8px; color: var(--red);">Old Answer: ${formatIndicesToLetters(change.oldAnswers)}</strong>${oldText}
                 </div>
-                <div style="flex: 1; min-width: 200px; padding: 15px; background: var(--success-bg); border-radius: 6px; border: 1px solid var(--success); color: var(--status-text);">
-                    <strong style="display: block; margin-bottom: 8px;">New Answer: ${formatIndicesToLetters(change.newAnswers)}</strong>
-                    ${newText}
+                <div style="flex: 1; min-width: 200px; padding: 15px; background: rgba(16, 185, 129, 0.15); border-radius: 6px; border: 1px solid var(--green); color: var(--text);">
+                    <strong style="display: block; margin-bottom: 8px; color: var(--green);">New Answer: ${formatIndicesToLetters(change.newAnswers)}</strong>${newText}
                 </div>
-            </div>
-        `;
+            </div>`;
         content.appendChild(div);
     });
-    
-    overlay.classList.remove('hidden');
-    modal.classList.remove('hidden');
+    document.getElementById('reviewOverlay').classList.remove('hidden');
+    document.getElementById('reviewModal').classList.remove('hidden');
 }
 
 function closeReviewModal() {
@@ -577,35 +547,47 @@ function closeReviewModal() {
     document.getElementById('reviewModal').classList.add('hidden');
 }
 
+/* Accordion Toggle Logic */
+function toggleExplanation() {
+    const expText = document.getElementById('explanationText');
+    const toggleBtnSpan = document.querySelector('#toggleExplanationBtn span');
+    const toggleBtn = document.getElementById('toggleExplanationBtn');
+    
+    if (expText.classList.contains('expanded')) {
+        expText.classList.remove('expanded');
+        if (toggleBtn) toggleBtn.classList.remove('open');
+        if (toggleBtnSpan) toggleBtnSpan.innerText = "Show Explanation";
+    } else {
+        expText.classList.add('expanded');
+        if (toggleBtn) toggleBtn.classList.add('open');
+        if (toggleBtnSpan) toggleBtnSpan.innerText = "Hide Explanation";
+    }
+}
+
 async function fetchGeminiAnswer() {
     const apiKey = localStorage.getItem('geminiApiKey');
-    if (!apiKey) {
-        alert("No API key found. Please click the '🔑' button at the top to add your API Key.");
-        return;
-    }
+    if (!apiKey) { alert("No API key found. Please click the key icon to add it."); return; }
     
     const q = quizData[curIdx];
-    if (!q.options || q.options.length === 0) {
-        alert("Cannot use AI because this question has no options. Please use the ✏️ edit tool to add options first.");
-        return;
-    }
+    if (!q.options || q.options.length === 0) { alert("Cannot use AI because this question has no options. Please use the edit tool to add options first."); return; }
 
     const geminiBtn = document.getElementById('geminiHelpBtn');
-    geminiBtn.innerText = '⏳';
+    const originalGeminiBtnHTML = geminiBtn.innerHTML;
+    
+    // UI Feedback BEFORE processing
+    geminiBtn.innerHTML = '⏳';
+    geminiBtn.style.opacity = '0.8';
     geminiBtn.disabled = true;
 
-    const optionsString = q.options.map((opt, i) => `[Index ${i}]: ${opt}`).join('\n');
-    const prompt = `
-You are a technical quiz assistant. Given the question and options below, return the correct option index (or indices if multiple) and a brief explanation (max 400 characters). 
-Question: ${q.question}
-Options:
-${optionsString}
+    const warningEl = document.getElementById('missingAnswerWarning');
+    warningEl.innerHTML = "<strong>✨ AI is analyzing the options...</strong> Please wait a moment.";
+    warningEl.style.background = "rgba(147, 51, 234, 0.15)";
+    warningEl.style.color = "var(--purple)";
+    warningEl.style.borderColor = "var(--purple)";
+    warningEl.classList.remove('hidden');
 
-Return strictly a valid JSON object matching this schema, no markdown blocks:
-{
-"correctAnswers": [number, ...],
-"explanation": "string (under 400 chars)"
-}`;
+    const optionsString = q.options.map((opt, i) => `[Index ${i}]: ${opt}`).join('\n');
+    const prompt = `You are a technical quiz assistant. Given the question and options below, return the correct option index (or indices if multiple) and a comprehensive explanation (max 600 characters). The explanation MUST explicitly state why the correct answer is right AND briefly point out why the other provided options are incorrect.\nQuestion: ${q.question}\nOptions:\n${optionsString}\nReturn strictly a valid JSON object matching this schema, no markdown blocks:\n{\n"correctAnswers": [number, ...],\n"explanation": "string (under 600 chars)"\n}`;
 
     try {
         const rawOutput = await executeGeminiRequest(prompt, apiKey);
@@ -616,13 +598,10 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
         let dataUpdated = false;
-        
         if (!isSame) {
             const formattedNew = formatIndicesToLetters(newAnswers);
             const formattedOld = formatIndicesToLetters(oldAnswers);
-            
             const userConfirmed = confirm(`The AI suggests the correct answer is: ${formattedNew}.\nYour JSON currently has: ${formattedOld}.\n\nDo you want to update your JSON DB with this answer?`);
-            
             if (userConfirmed) {
                 q.correctAnswers = newAnswers;
                 if (q.userAnswer !== null) {
@@ -632,56 +611,38 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
                 dataUpdated = true;
             }
         }
-
         q.explanation = result.explanation;
-        
-        if (dataUpdated) {
-            syncStateToDrive();
-        } else {
-            saveState();
-        }
+        if (dataUpdated) syncStateToDrive(); else saveState();
         
         renderQ();
         
-        document.getElementById('explanationText').classList.remove('hidden');
-        document.getElementById('toggleExplanationBtn').innerText = "Hide Explanation";
+        // Auto-show explanation after AI answers
+        const expText = document.getElementById('explanationText');
+        const toggleBtn = document.getElementById('toggleExplanationBtn');
+        const toggleBtnSpan = document.querySelector('#toggleExplanationBtn span');
+        
+        if (expText) expText.classList.add('expanded');
+        if (toggleBtn) toggleBtn.classList.add('open');
+        if (toggleBtnSpan) toggleBtnSpan.innerText = "Hide Explanation";
 
     } catch (err) {
         console.error("AI Error:", err);
-        alert(`Failed to reach AI: ${err.message}\n\nPlease check your console or ensure your API key is valid by clicking the '🔑' button above.`);
+        alert(`Failed to reach AI: ${err.message}`);
+        warningEl.style.background = "";
+        warningEl.style.color = "";
+        warningEl.style.borderColor = "";
+        warningEl.classList.add('hidden');
     } finally {
-        geminiBtn.innerText = '✨';
+        geminiBtn.innerHTML = originalGeminiBtnHTML;
+        geminiBtn.style.opacity = '1';
         geminiBtn.disabled = false;
-    }
-}
-
-function toggleExplanation() {
-    const expText = document.getElementById('explanationText');
-    const toggleBtn = document.getElementById('toggleExplanationBtn');
-    if (expText.classList.contains('hidden')) {
-        expText.classList.remove('hidden');
-        toggleBtn.innerText = "Hide Explanation";
-    } else {
-        expText.classList.add('hidden');
-        toggleBtn.innerText = "Show Explanation";
     }
 }
 
 function showReuploadScreen() {
     if(!confirm("Warning: Pasting new JSON will overwrite your current cloud file and reset all progress. Do you wish to continue?")) return;
-    
     document.getElementById('quizApp').classList.add('hidden');
-    document.getElementById('exportJsonBtn').classList.add('hidden');
-    document.getElementById('restartQuizBtn').classList.add('hidden');
-    document.getElementById('reuploadBtn').classList.add('hidden');
-    document.getElementById('changeApiKeyBtn').classList.add('hidden');
-    document.getElementById('checkAllBtn').classList.add('hidden');
-    document.getElementById('notesBtn').classList.add('hidden');
-    
     document.getElementById('jsonInputScreen').classList.remove('hidden');
-    document.getElementById('jsonScreenTitle').innerText = "Upload New JSON";
-    document.getElementById('jsonScreenDesc').innerText = "Paste your new JSON array below to completely overwrite your existing cloud file:";
-    document.getElementById('cancelJsonBtn').classList.remove('hidden');
     document.getElementById('jsonInput').value = ""; 
 }
 
@@ -693,28 +654,17 @@ function cancelReupload() {
 function handleNewJsonSubmit() {
     try {
         const rawData = JSON.parse(document.getElementById('jsonInput').value);
-        
-        if(!Array.isArray(rawData) || rawData.length === 0) {
-            throw new Error("Data must be a non-empty array");
-        }
+        if(!Array.isArray(rawData) || rawData.length === 0) throw new Error("Data must be a non-empty array");
 
         quizData = rawData.map(q => ({
-            ...q,
-            options: q.options || [],
-            correctAnswers: q.correctAnswers || [],
-            userAnswer: null, 
-            status: null,
-            marked: false,
-            explanation: null
+            ...q, options: q.options || [], correctAnswers: q.correctAnswers || [],
+            userAnswer: null, status: null, marked: false, explanation: null
         }));
-        curIdx = 0;
-        globalNotes = null; 
+        curIdx = 0; globalNotes = null; 
         
+        localStorage.removeItem('checkAllProgress'); 
         document.getElementById('jsonInputScreen').classList.add('hidden');
-        
-        syncStateToDrive(); 
-        startApp();
-        
+        syncStateToDrive(); startApp();
     } catch(e) { 
         alert("Invalid JSON format! Please ensure you pasted a valid JSON array matching the placeholder structure."); 
         console.error(e);
@@ -725,90 +675,40 @@ function startApp() {
     document.getElementById('configScreen').classList.add('hidden');
     document.getElementById('jsonInputScreen').classList.add('hidden');
     document.getElementById('quizApp').classList.remove('hidden');
-    
-    document.getElementById('syncIndicator').classList.remove('hidden');
-    updateSyncStatus('success');
-    
-    document.getElementById('reuploadBtn').classList.remove('hidden');
-    document.getElementById('changeApiKeyBtn').classList.remove('hidden');
-    document.getElementById('checkAllBtn').classList.remove('hidden');
-    document.getElementById('notesBtn').classList.remove('hidden');
-    document.getElementById('clearCacheBtn').classList.remove('hidden');
-    document.getElementById('restartQuizBtn').classList.remove('hidden');
-    document.getElementById('exportJsonBtn').classList.remove('hidden');
-    
-    renderSidebar();
-    renderQ();
+    renderSidebar(); renderQ();
 }
 
 function restartQuiz() {
     if(!confirm("Restart the quiz? Progress will be lost, but your modified JSON answers and marked questions will be kept.")) return;
-    
-    quizData.forEach(q => {
-        q.userAnswer = null;
-        q.status = null;
-    });
-    
-    curIdx = 0;
-    isEditingQuestion = false;
-    
-    syncStateToDrive();
-    renderSidebar();
-    renderQ();
+    quizData.forEach(q => { q.userAnswer = null; q.status = null; });
+    curIdx = 0; isEditingQuestion = false;
+    syncStateToDrive(); renderSidebar(); renderQ();
 }
 
 function copyToClipboard(text, onSuccess, onError) {
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess, onError));
-    } else {
-        fallbackCopy(text, onSuccess, onError);
-    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess, onError));
+    else fallbackCopy(text, onSuccess, onError);
 }
 
 function fallbackCopy(text, onSuccess, onError) {
     const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed"; textArea.style.top = "-999999px";
-    document.body.appendChild(textArea);
-    textArea.focus(); textArea.select();
-    textArea.setSelectionRange(0, 999999); 
-    try {
-        if (document.execCommand('copy') && onSuccess) onSuccess();
-        else if (onError) onError(new Error("Browser rejected copy."));
-    } catch (err) { if(onError) onError(err); }
+    textArea.value = text; textArea.style.position = "fixed"; textArea.style.top = "-999999px";
+    document.body.appendChild(textArea); textArea.focus(); textArea.select(); textArea.setSelectionRange(0, 999999); 
+    try { if (document.execCommand('copy') && onSuccess) onSuccess(); else if (onError) onError(new Error("Browser rejected copy.")); } catch (err) { if(onError) onError(err); }
     document.body.removeChild(textArea);
 }
 
 function exportJSON() {
     const cleanData = quizData.map(({ userAnswer, status, marked, explanation, ...rest }) => rest);
-    const textToCopy = JSON.stringify(cleanData, null, 4);
-    
-    copyToClipboard(
-        textToCopy,
-        () => alert("Cleaned JSON copied to clipboard!"),
-        (err) => alert("Failed to copy.")
-    );
+    copyToClipboard(JSON.stringify(cleanData, null, 4), () => alert("Cleaned JSON copied to clipboard!"), (err) => alert("Failed to copy."));
 }
 
 function copyQuestion() {
     const q = quizData[curIdx];
     let copyText = `Question: ${q.question}\n\n`;
     const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    
-    (q.options || []).forEach((opt, i) => {
-        copyText += `${letters[i] || (i+1)}) ${opt}\n`;
-    });
-
-    copyToClipboard(
-        copyText,
-        () => {
-            const btn = document.getElementById('copyQBtn');
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '✅';
-            setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
-        },
-        (err) => alert("Failed to copy question.")
-    );
+    (q.options || []).forEach((opt, i) => { copyText += `${letters[i] || (i+1)}) ${opt}\n`; });
+    copyToClipboard(copyText, () => {}, (err) => alert("Failed to copy question."));
 }
 
 function goToQuestion(index) {
@@ -816,33 +716,35 @@ function goToQuestion(index) {
         if(!confirm("You have unsaved edits. Discard changes?")) return;
         isEditingQuestion = false;
     }
-    curIdx = index;
-    syncStateToDrive(); 
-    renderSidebar(); 
-    renderQ();
+    curIdx = index; syncStateToDrive(); renderSidebar(); renderQ();
 }
 
 function renderSidebar() {
     const navGrid = document.getElementById('navGrid');
     navGrid.innerHTML = '';
     
+    document.getElementById('progressMeta').innerText = `(${curIdx + 1}/${quizData.length})`;
+    
     quizData.forEach((q, i) => {
         const btn = document.createElement('button');
         btn.className = 'nav-btn';
         btn.innerText = i + 1;
-        
         if (q.marked) btn.classList.add('marked');
         else if (q.status === 'correct') btn.classList.add('correct');
         else if (q.status === 'incorrect') btn.classList.add('incorrect');
-        
         if (i === curIdx) btn.classList.add('active');
-        
         btn.addEventListener('click', () => goToQuestion(i));
         navGrid.appendChild(btn);
     });
+
+    setTimeout(() => {
+        const activeBtn = navGrid.querySelector('.nav-btn.active');
+        if (activeBtn) {
+            activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }, 50);
 }
 
-// Inline Editing Logic
 function startEditQuestion() {
     const q = quizData[curIdx];
     isEditingQuestion = true;
@@ -854,49 +756,29 @@ function startEditQuestion() {
 function renderEditOptionsUI() {
     const container = document.getElementById('editOptionsList');
     container.innerHTML = '';
-    
-    if (tempEditOptions.length === 0) {
-        container.innerHTML = `<em style="color: var(--secondary); font-size: 0.9em;">No options exist. Click "+ Add Option" below.</em>`;
-    }
+    if (tempEditOptions.length === 0) container.innerHTML = `<em style="color: var(--secondary); font-size: 0.9em;">No options exist. Click "+ Add Option" below.</em>`;
 
     tempEditOptions.forEach((opt, idx) => {
         const row = document.createElement('div');
         row.style = "display: flex; gap: 10px; align-items: center; margin-bottom: 10px;";
-        
         const isCorrect = tempEditAnswers.includes(idx);
         
-        const check = document.createElement('input');
-        check.type = 'checkbox';
-        check.checked = isCorrect;
-        check.style = "transform: scale(1.3); cursor: pointer;";
-        check.onchange = (e) => {
-            if(e.target.checked) tempEditAnswers.push(idx);
-            else tempEditAnswers = tempEditAnswers.filter(val => val !== idx);
-        };
+        const check = document.createElement('input'); check.type = 'checkbox'; check.checked = isCorrect; check.style = "transform: scale(1.3); cursor: pointer;";
+        check.onchange = (e) => { if(e.target.checked) tempEditAnswers.push(idx); else tempEditAnswers = tempEditAnswers.filter(val => val !== idx); };
         
-        const textIn = document.createElement('input');
-        textIn.type = 'text';
-        textIn.value = opt;
-        textIn.style = "flex: 1; margin: 0; padding: 10px;";
+        const textIn = document.createElement('input'); textIn.type = 'text'; textIn.value = opt; textIn.style = "flex: 1; margin: 0; padding: 10px;";
         textIn.oninput = (e) => tempEditOptions[idx] = e.target.value;
         
-        const delBtn = document.createElement('button');
-        delBtn.innerText = '🗑️';
-        delBtn.className = 'copy-btn';
+        const delBtn = document.createElement('button'); 
+        delBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" stroke="var(--red)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>'; 
+        delBtn.className = 'icon-btn'; 
         delBtn.title = "Delete Option";
         delBtn.onclick = () => {
             tempEditOptions.splice(idx, 1);
-            // Adjust correct answers down if they were above deleted index
-            tempEditAnswers = tempEditAnswers
-                .filter(val => val !== idx)
-                .map(val => val > idx ? val - 1 : val);
+            tempEditAnswers = tempEditAnswers.filter(val => val !== idx).map(val => val > idx ? val - 1 : val);
             renderEditOptionsUI();
         };
-        
-        row.appendChild(check);
-        row.appendChild(textIn);
-        row.appendChild(delBtn);
-        container.appendChild(row);
+        row.appendChild(check); row.appendChild(textIn); row.appendChild(delBtn); container.appendChild(row);
     });
 }
 
@@ -905,38 +787,21 @@ function saveEditedData() {
     q.question = document.getElementById('editQTextInput').value.trim();
     q.options = tempEditOptions.map(o => o.trim());
     q.correctAnswers = [...tempEditAnswers];
-    
-    if (q.options.length === 0) {
-        alert("Please add at least one option."); return;
-    }
+    if (q.options.length === 0) { alert("Please add at least one option."); return; }
 
-    // Reset user progress on this question since they changed options
-    q.userAnswer = null;
-    q.status = null;
-    
-    isEditingQuestion = false;
-    syncStateToDrive(); 
-    
-    renderQ();
-    renderSidebar();
-    
-    const qMeta = document.getElementById('qCount');
-    qMeta.innerHTML = `<span style="color: var(--success);">Saved Successfully!</span>`;
-    setTimeout(() => renderQ(), 2000);
+    q.userAnswer = null; q.status = null; isEditingQuestion = false;
+    syncStateToDrive(); renderQ(); renderSidebar();
 }
 
 function renderQ() {
     const q = quizData[curIdx];
     const currentScore = quizData.filter(x => x.status === 'correct').length;
-    
     const hasMissingOptions = !q.options || q.options.length === 0;
     const hasMissingAnswer = !q.correctAnswers || q.correctAnswers.length === 0;
     
-    let metaText = `Question ${curIdx + 1} of ${quizData.length}`;
-    if (isEditingQuestion) metaText += ` <span class="edit-badge">EDITING</span>`;
-    
-    document.getElementById('qCount').innerHTML = metaText;
-    document.getElementById('qScore').innerText = `Score: ${currentScore}`;
+    let metaText = `Score: ${currentScore} &middot; Question: ${curIdx + 1}`;
+    if (isEditingQuestion) metaText += ` <span class="edit-badge" style="margin-left: 10px;">EDITING</span>`;
+    document.getElementById('qMetaText').innerHTML = metaText;
     
     const qTextNode = document.getElementById('qText');
     const editPenBtn = document.getElementById('editPenBtn');
@@ -945,78 +810,72 @@ function renderQ() {
     const warningEl = document.getElementById('missingAnswerWarning');
     const explanationContainer = document.getElementById('explanationContainer');
 
+    warningEl.style.background = "";
+    warningEl.style.color = "";
+    warningEl.style.borderColor = "";
+
     if (isEditingQuestion) {
-        qTextNode.classList.add('hidden');
-        editPenBtn.classList.add('hidden'); // Hide pen while editing
-        optionsDiv.classList.add('hidden');
-        warningEl.classList.add('hidden');
-        explanationContainer.classList.add('hidden');
-        
+        qTextNode.classList.add('hidden'); editPenBtn.classList.add('hidden'); 
+        optionsDiv.classList.add('hidden'); warningEl.classList.add('hidden'); explanationContainer.classList.add('hidden');
         editFormContainer.classList.remove('hidden');
         document.getElementById('editQTextInput').value = q.question || "";
         renderEditOptionsUI();
     } else {
-        qTextNode.classList.remove('hidden');
-        editPenBtn.classList.remove('hidden'); // Show pen when not editing
-        optionsDiv.classList.remove('hidden');
-        editFormContainer.classList.add('hidden');
-        explanationContainer.classList.remove('hidden');
+        qTextNode.classList.remove('hidden'); editPenBtn.classList.remove('hidden'); 
+        optionsDiv.classList.remove('hidden'); editFormContainer.classList.add('hidden');
         
         qTextNode.innerText = q.question;
         
-        // Build warning banner
-        if (hasMissingOptions && hasMissingAnswer) {
-            warningEl.innerText = "⚠️ Options and correct answer are missing. Click the ✏️ icon to fix.";
-            warningEl.classList.remove('hidden');
-        } else if (hasMissingOptions) {
-            warningEl.innerText = "⚠️ Options are missing. Click the ✏️ icon to fix.";
-            warningEl.classList.remove('hidden');
-        } else if (hasMissingAnswer) {
-            warningEl.innerText = "⚠️ Correct answer not provided. Use AI (✨) to fetch it, or click the ✏️ icon to fix.";
-            warningEl.classList.remove('hidden');
-        } else {
-            warningEl.classList.add('hidden');
-        }
+        if (hasMissingOptions && hasMissingAnswer) { warningEl.innerText = "⚠️ Options and correct answer are missing. Click the pencil icon to fix."; warningEl.classList.remove('hidden'); }
+        else if (hasMissingOptions) { warningEl.innerText = "⚠️ Options are missing. Click the pencil icon to fix."; warningEl.classList.remove('hidden'); }
+        else if (hasMissingAnswer) { warningEl.innerText = "⚠️ Correct answer not provided. Use AI to fetch it, or click the pencil icon to fix."; warningEl.classList.remove('hidden'); }
+        else { warningEl.classList.add('hidden'); }
 
-        // Build Options View
         optionsDiv.innerHTML = '';
         const inputType = (!hasMissingAnswer && q.correctAnswers.length > 1) ? 'checkbox' : 'radio';
         const isAnswered = q.status !== null;
         
+        const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
         (q.options || []).forEach((o, i) => {
-            const label = document.createElement('label');
-            label.className = 'option-label';
-            
-            const input = document.createElement('input');
-            input.type = inputType;
-            input.name = 'quizOption';
-            input.value = i;
+            const label = document.createElement('label'); label.className = 'option-label';
+            const input = document.createElement('input'); input.type = inputType; input.name = 'quizOption'; input.value = i;
             
             if (isAnswered) {
-                input.disabled = true;
-                label.classList.add('disabled');
-                
+                input.disabled = true; label.classList.add('disabled');
                 if (q.userAnswer && q.userAnswer.includes(i)) input.checked = true;
                 if (!hasMissingAnswer && q.correctAnswers.includes(i)) label.classList.add('correct');
                 else if (q.userAnswer && q.userAnswer.includes(i)) label.classList.add('incorrect');
             } else if (hasMissingAnswer || hasMissingOptions) {
-                input.disabled = true;
-                label.classList.add('disabled');
+                input.disabled = true; label.classList.add('disabled');
             }
             
-            label.appendChild(input);
-            label.appendChild(document.createTextNode(' ' + o));
+            label.appendChild(input); 
+            const strongLetter = document.createElement('strong');
+            strongLetter.style = "margin-right: 15px; color: var(--text);";
+            strongLetter.innerText = letters[i] || '';
+            label.appendChild(strongLetter);
+            
+            label.appendChild(document.createTextNode(o));
             optionsDiv.appendChild(label);
         });
         
         const explanationText = document.getElementById('explanationText');
-        const toggleExplanationBtn = document.getElementById('toggleExplanationBtn');
-        explanationText.classList.add('hidden'); 
-        toggleExplanationBtn.innerText = "Show Explanation";
-        explanationText.innerText = q.explanation ? q.explanation : ""; 
+        const toggleBtnSpan = document.querySelector('#toggleExplanationBtn span');
+        const toggleBtn = document.getElementById('toggleExplanationBtn');
+        
+        if (explanationText) explanationText.classList.remove('expanded');
+        if (toggleBtn) toggleBtn.classList.remove('open');
+        if (toggleBtnSpan) toggleBtnSpan.innerText = "Show Explanation";
+
+        if (q.explanation && q.explanation.trim() !== "") {
+            explanationContainer.classList.remove('hidden');
+            if (explanationText) explanationText.innerText = q.explanation; 
+        } else {
+            explanationContainer.classList.add('hidden');
+        }
     }
 
-    // Button Visibility Logic
     const submitBtn = document.getElementById('submitBtn');
     const nextBtn = document.getElementById('nextBtn');
     const markBtn = document.getElementById('markBtn');
@@ -1025,11 +884,9 @@ function renderQ() {
     const cancelEditBtn = document.getElementById('cancelEditBtn');
     
     if (q.marked) {
-        markBtn.innerText = 'Unmark Question';
-        markBtn.classList.add('is-marked');
+        markBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Unmark Question';
     } else {
-        markBtn.innerText = 'Mark Question';
-        markBtn.classList.remove('is-marked');
+        markBtn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg> Mark Question';
     }
 
     if (isEditingQuestion) {
@@ -1038,11 +895,11 @@ function renderQ() {
     } else if (hasMissingAnswer || hasMissingOptions) {
         submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden'); markBtn.classList.remove('hidden');
         saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
-        nextBtn.innerText = "Skip Question";
-    } else if (q.status !== null) { // isAnswered
+        nextBtn.innerHTML = 'Skip Question';
+    } else if (q.status !== null) { 
         submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden'); markBtn.classList.remove('hidden');
         saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
-        nextBtn.innerText = (curIdx === quizData.length - 1) ? "Finish Quiz" : "Next Question";
+        nextBtn.innerHTML = (curIdx === quizData.length - 1) ? 'Finish Quiz' : '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Next Question';
     } else {
         submitBtn.classList.remove('hidden'); fixJsonBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); markBtn.classList.remove('hidden');
         saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
@@ -1051,9 +908,7 @@ function renderQ() {
 
 function toggleMark() {
     quizData[curIdx].marked = !quizData[curIdx].marked;
-    syncStateToDrive();
-    renderQ(); 
-    renderSidebar(); 
+    syncStateToDrive(); renderQ(); renderSidebar(); 
 }
 
 function submitAnswer() {
@@ -1064,19 +919,14 @@ function submitAnswer() {
     if(selected.length === 0) { alert("Please select an answer before submitting."); return; }
 
     const isCorrect = selected.length === q.correctAnswers.length && selected.every(val => q.correctAnswers.includes(val));
+    q.userAnswer = selected; q.status = isCorrect ? 'correct' : 'incorrect';
     
-    q.userAnswer = selected;
-    q.status = isCorrect ? 'correct' : 'incorrect';
-    
-    syncStateToDrive();
-    renderQ(); 
-    renderSidebar();
+    syncStateToDrive(); renderQ(); renderSidebar();
 }
 
 function nextQuestion() {
-    if (curIdx < quizData.length - 1) {
-        goToQuestion(curIdx + 1);
-    } else {
+    if (curIdx < quizData.length - 1) goToQuestion(curIdx + 1);
+    else {
         const finalScore = quizData.filter(x => x.status === 'correct').length;
         alert(`Quiz Finished! Final Score: ${finalScore} out of ${quizData.length}`);
     }
