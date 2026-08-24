@@ -301,7 +301,7 @@
     <button id="loadBtn" class="action-btn">Load System</button>
     <p id="loadingMsg" class="hidden" style="color: var(--primary); font-weight: bold; margin-top: 15px;">⏳ Communicating with Google Drive...</p>
 
-    <!-- Added Setup Guide Section -->
+    <!-- Setup Guide Section -->
     <div class="guide-section" style="margin: 25px 0 10px 0; padding: 15px; background: var(--edit-bg); border: 1px dashed var(--warning); border-radius: 8px; font-size: 0.95em;">
         <details>
             <summary style="font-weight: bold; cursor: pointer; color: var(--primary-hover); outline: none;">📖 How to setup Google Apps Script & JSON Format</summary>
@@ -339,7 +339,6 @@
     <!-- End Setup Guide Section -->
 </div>
 
-
 <div id="jsonInputScreen" class="config-container card hidden">
     <h2 id="jsonScreenTitle">Upload Quiz Data</h2>
     <p id="jsonScreenDesc">Paste your JSON array of questions here:</p>
@@ -372,6 +371,12 @@
             </div>
         </h3>
         <div id="qText" class="q-text"></div>
+        
+        <!-- Added missing answer warning -->
+        <div id="missingAnswerWarning" class="hidden" style="padding: 12px; margin-bottom: 20px; background: var(--error-bg); color: var(--error); border: 1px solid var(--error); border-radius: 8px; font-weight: 600; font-size: 0.95em;">
+            ⚠️ Correct answer not provided in JSON. Use AI (✨) to fetch it, or click "Fix Correct Answer" to set it manually.
+        </div>
+        
         <div id="options" class="options-container"></div>
         
         <div id="explanationContainer" class="explanation-box">
@@ -567,7 +572,8 @@
                     document.getElementById('cancelJsonBtn').classList.add('hidden');
                 } else {
                     quizData = loadedQuizData.map(q => ({ 
-                        ...q, 
+                        ...q,
+                        correctAnswers: q.correctAnswers || [], // Added robust check for missing correct answers
                         userAnswer: q.userAnswer || null, 
                         status: q.status || null, 
                         marked: q.marked || false,
@@ -804,7 +810,7 @@ ${batchPrompt}`;
 
                     results.forEach((result, idx) => {
                         const q = quizData[i + idx];
-                        const oldAnswers = q.correctAnswers;
+                        const oldAnswers = q.correctAnswers || [];
                         const newAnswers = result.correctAnswers;
                         const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
@@ -948,7 +954,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
             const rawOutput = await executeGeminiRequest(prompt, apiKey);
             const result = JSON.parse(rawOutput);
 
-            const oldAnswers = q.correctAnswers;
+            const oldAnswers = q.correctAnswers || [];
             const newAnswers = result.correctAnswers;
             const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
@@ -1037,6 +1043,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
 
             quizData = rawData.map(q => ({
                 ...q,
+                correctAnswers: q.correctAnswers || [], // Added robust check for missing correct answers
                 userAnswer: null, 
                 status: null,
                 marked: false,
@@ -1180,6 +1187,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
     function renderQ() {
         const q = quizData[curIdx];
         const currentScore = quizData.filter(x => x.status === 'correct').length;
+        const hasMissingAnswer = !q.correctAnswers || q.correctAnswers.length === 0;
         
         let metaText = `Question ${curIdx + 1} of ${quizData.length}`;
         if (isEditingData) metaText += ` <span class="edit-badge">EDITING CLOUD DATA</span>`;
@@ -1188,10 +1196,18 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         document.getElementById('qScore').innerText = `Score: ${currentScore}`;
         document.getElementById('qText').innerText = q.question;
         
+        // Show or hide the missing answer warning
+        const warningEl = document.getElementById('missingAnswerWarning');
+        if (hasMissingAnswer && !isEditingData) {
+            warningEl.classList.remove('hidden');
+        } else {
+            warningEl.classList.add('hidden');
+        }
+        
         const optCont = document.getElementById('options');
         optCont.innerHTML = '';
         
-        const inputType = q.correctAnswers.length > 1 ? 'checkbox' : 'radio';
+        const inputType = (!hasMissingAnswer && q.correctAnswers.length > 1) ? 'checkbox' : 'radio';
         const isAnswered = q.status !== null;
         
         q.options.forEach((o, i) => {
@@ -1206,14 +1222,18 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
             if (isEditingData) {
                 input.disabled = false;
                 label.classList.add('edit-mode-label');
-                if (q.correctAnswers.includes(i)) input.checked = true;
+                if (!hasMissingAnswer && q.correctAnswers.includes(i)) input.checked = true;
             } else if (isAnswered) {
                 input.disabled = true;
                 label.classList.add('disabled');
                 
                 if (q.userAnswer && q.userAnswer.includes(i)) input.checked = true;
-                if (q.correctAnswers.includes(i)) label.classList.add('correct');
+                if (!hasMissingAnswer && q.correctAnswers.includes(i)) label.classList.add('correct');
                 else if (q.userAnswer && q.userAnswer.includes(i)) label.classList.add('incorrect');
+            } else if (hasMissingAnswer) {
+                // Disable inputs if no answer exists so user doesn't try to guess blindly
+                input.disabled = true;
+                label.classList.add('disabled');
             }
             
             label.appendChild(input);
@@ -1247,6 +1267,11 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         if (isEditingData) {
             submitBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); markBtn.classList.add('hidden');
             fixJsonBtn.classList.add('hidden'); saveDataBtn.classList.remove('hidden'); cancelEditBtn.classList.remove('hidden');
+        } else if (hasMissingAnswer) {
+            // Force the user to fix the JSON if the answer is missing
+            submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden');
+            saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
+            nextBtn.innerText = "Skip Question";
         } else if (isAnswered) {
             submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden');
             saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
