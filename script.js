@@ -707,9 +707,29 @@ function copyQuestion() {
     const q = quizData[curIdx];
     let copyText = `Question: ${q.question}\n\n`;
     const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    (q.options || []).forEach((opt, i) => { copyText += `${letters[i] || (i+1)}) ${opt}\n`; });
-    copyToClipboard(copyText, () => {}, (err) => alert("Failed to copy question."));
+    
+    // Add the options nicely formatted
+    (q.options || []).forEach((opt, i) => { 
+        copyText += `${letters[i] || (i+1)}) ${opt}\n`; 
+    });
+    
+    // Trigger the copy and show visual feedback
+    copyToClipboard(
+        copyText, 
+        () => {
+            const btn = document.getElementById('copyQBtn');
+            const originalHTML = btn.innerHTML;
+            // Show a green checkmark to confirm it copied
+            btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" stroke="var(--green)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            
+            // Restore original icon after 1.5 seconds
+            setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
+        }, 
+        (err) => alert("Failed to copy question.")
+    );
 }
+
+
 
 function goToQuestion(index) {
     if (isEditingQuestion) {
