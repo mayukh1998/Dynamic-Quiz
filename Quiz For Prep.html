@@ -3,179 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Quiz</title> 
-    <!-- Link to external CSS -->
-    <link rel="stylesheet" href="style.css">
+    
+    <!-- Automatic redirect after 0 seconds -->
+    <meta http-equiv="refresh" content="0; url=index.html">
+    
+    <title>Redirecting...</title>
+    
+    <!-- JavaScript fallback in case meta refresh is disabled -->
+    <script>
+        window.location.replace("index.html");
+    </script>
 </head>
-<body>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 40px; text-align: center; background-color: #f4f6f9; color: #16325c;">
+    
+    <h3>Redirecting you to the Quiz App...</h3>
+    <p>If you are not redirected automatically, <a href="index.html" style="color: #0070d2; text-decoration: none; font-weight: bold;">click here</a>.</p>
 
-<div id="progressOverlay" class="overlay hidden"></div>
-<div id="progressModal" class="card progress-modal hidden">
-    <h3 style="margin-top: 0;">Syncing...</h3>
-    <p style="font-size: 0.9em; color: var(--secondary);">Processing sequentially in batches. Please do not close the page.</p>
-    <div style="background: var(--border); border-radius: 8px; height: 20px; overflow: hidden; margin: 15px 0;">
-        <div id="progressBar" style="background: var(--success); width: 0%; height: 100%; transition: width 0.3s;"></div>
-    </div>
-    <p id="progressText" style="font-weight: bold; color: var(--text);">0 / 0</p>
-    <p id="progressErrorText" style="color: var(--danger); font-weight: bold; font-size: 0.9em; margin-top: 10px; min-height: 20px;"></p>
-</div>
-
-<!-- Review Changes Modal -->
-<div id="reviewOverlay" class="overlay hidden"></div>
-<div id="reviewModal" class="card review-modal hidden">
-    <button id="closeReviewBtn" class="close-review-btn" title="Close Review">&times;</button>
-    <h2 style="margin-top: 0; padding-right: 30px; color: var(--text);">AI Answer Updates Review</h2>
-    <p style="color: var(--secondary); margin-top: 0;">The following questions had their correct answers modified by the AI batch check:</p>
-    <div id="reviewContent" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;"></div>
-</div>
-
-<!-- Notes Modal -->
-<div id="notesOverlay" class="overlay hidden"></div>
-<div id="notesModal" class="card notes-modal hidden">
-    <button id="closeNotesBtn" class="close-review-btn" title="Close Notes">&times;</button>
-    <div class="notes-modal-header" style="display: flex; justify-content: space-between; align-items: center; padding-right: 40px;">
-        <h2 style="margin: 0; color: var(--text);">Study Notes</h2>
-        <button id="regenerateNotesBtn" class="action-btn" style="background: var(--purple); padding: 8px 16px; font-size: 14px; min-width: auto; flex: none;">🔄 Regenerate AI Notes</button>
-    </div>
-    <p style="color: var(--secondary); margin-top: 5px;">Concise, auto-generated notes based on quiz explanations.</p>
-    <div id="notesContent" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px; font-size: 1.05em; line-height: 1.7; white-space: pre-wrap;"></div>
-</div>
-
-<div class="header">
-    <div id="syncIndicator" class="sync-status hidden">☁️ Cloud Synced</div>
-    <button id="themeToggleBtn" class="top-btn theme-btn" title="Toggle Theme">🌙</button>
-    <button id="changeApiKeyBtn" class="top-btn api-key-btn hidden" title="Change API Key">🔑</button>
-    <button id="checkAllBtn" class="top-btn hidden" title="Check All Questions with AI" style="background: var(--purple);">⭐ Check All</button>
-    <button id="notesBtn" class="top-btn notes-btn hidden" title="Generate AI Study Notes">📝 Notes</button>
-    <!-- Fixed "New JSON" button size by removing 'theme-btn' class -->
-    <button id="reuploadBtn" class="top-btn hidden" title="Upload New JSON" style="background: var(--primary);">📂 New JSON</button>
-    <button id="exportJsonBtn" class="top-btn export-btn hidden">Copy JSON</button>
-    <button id="restartQuizBtn" class="top-btn restart-btn hidden">Restart Quiz</button>
-    <button id="clearCacheBtn" class="top-btn clear-btn hidden">Unlink Services</button>
-</div>
-
-<div id="configScreen" class="config-container card">
-    <h2>Connect Integrations</h2>
-    <p>Paste your Google Apps Script URL for cloud saving, and your Gemini API Key for AI features.</p>
-    <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key (Optional but required for ✨ features)">
-    <button id="loadBtn" class="action-btn">Load System</button>
-    <p id="loadingMsg" class="hidden" style="color: var(--primary); font-weight: bold; margin-top: 15px;">⏳ Communicating with Google Drive...</p>
-
-    <!-- Setup Guide Section -->
-    <div class="guide-section" style="margin: 25px 0 10px 0; padding: 15px; background: var(--edit-bg); border: 1px dashed var(--warning); border-radius: 8px; font-size: 0.95em;">
-        <details>
-            <summary style="font-weight: bold; cursor: pointer; color: var(--primary-hover); outline: none;">📖 How to setup Google Apps Script & JSON Format</summary>
-            <div style="margin-top: 15px; color: var(--text);">
-                <h4 style="margin-top: 0;">1. Google Apps Script Setup</h4>
-                <ol style="padding-left: 20px; line-height: 1.6;">
-                    <li>Create a blank text file in your Google Drive. Right-click it, select <strong>Share</strong>, and set general access to <strong>Anyone with the link</strong>.</li>
-                    <li>Copy the <strong>File ID</strong> from the sharing link (the long string of characters between <code>/d/</code> and <code>/view</code>).</li>
-                    <li>Go to <a href="https://script.google.com" target="_blank" style="color: var(--primary);">script.google.com</a> and click <strong>New Project</strong>.</li>
-                    <li>Open this <a href="https://docs.google.com/document/d/16jmzlkyOZBvo28CyPSjJifSOuhsWieFGZusJhTzh8Yg/edit?usp=drivesdk" target="_blank" style="color: var(--primary);"><strong>Sample Google Script</strong></a>, copy its contents, and paste it into your new Apps Script project.</li>
-                    <li>Inside the script editor, locate the variable for the File ID and replace it with the one you copied in Step 2.</li>
-                    <li>Click <strong>Deploy</strong> &gt; <strong>New deployment</strong> in the top right.</li>
-                    <li>Select the gear icon and choose <strong>Web app</strong>.</li>
-                    <li>Set <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to <strong>Anyone</strong>.</li>
-                    <li>Click <strong>Deploy</strong>, copy the resulting <strong>Web app URL</strong>, and paste it in the input above.</li>
-                </ol>
-                
-                <h4>2. JSON Question Format Example</h4>
-                <p>Your quiz data must be a JSON array of objects. Use 0-based indexing for <code>correctAnswers</code> (e.g., 0 is the first option). The app supports multiple correct answers.</p>
-                <pre style="background: var(--card-bg); padding: 12px; border: 1px solid var(--border); border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 0.9em;">[
-  {
-    "question": "What is the capital of France?",
-    "options": ["Berlin", "London", "Paris", "Rome"],
-    "correctAnswers": [2]
-  },
-  {
-    "question": "Which of these are primary colors?",
-    "options": ["Red", "Green", "Blue", "Yellow"],
-    "correctAnswers": [0, 2]
-  }
-]</pre>
-            </div>
-        </details>
-    </div>
-</div>
-
-<div id="jsonInputScreen" class="config-container card hidden">
-    <h2 id="jsonScreenTitle">Upload Quiz Data</h2>
-    <p id="jsonScreenDesc">Paste your JSON array of questions here:</p>
-    <textarea id="jsonInput" placeholder='[
-  {
-    "question": "What is the capital of France?",
-    "options": ["Berlin", "London", "Paris", "Rome"],
-    "correctAnswers": [2]
-  }
-]'></textarea>
-    <div class="button-group" style="margin-top: 0;">
-        <button id="saveNewJsonBtn" class="action-btn">Save to Cloud & Start</button>
-        <button id="cancelJsonBtn" class="action-btn btn-warning hidden">Cancel</button>
-    </div>
-</div>
-
-<div id="quizApp" class="app-wrapper hidden">
-    <div class="sidebar card">
-        <h3>Quiz Progress</h3>
-        <div id="navGrid" class="nav-grid"></div>
-    </div>
-
-    <div class="main-content card">
-        <h3 id="qMeta" class="q-meta">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span id="qCount"></span>
-                <!-- Resized and repositioned edit pen button -->
-                <button id="editPenBtn" class="copy-btn" title="Edit Question & Options" style="font-size: 1.1em; padding: 2px;">✏️</button>
-            </div>
-            <div class="score-container">
-                <span id="qScore"></span>
-                <button id="geminiHelpBtn" class="copy-btn" title="Ask AI to verify answer & explain">✨</button>
-                <button id="copyQBtn" class="copy-btn" title="Copy Question to Clipboard">📋</button>
-            </div>
-        </h3>
-        
-        <!-- Standard Question View -->
-        <div id="qText" class="q-text"></div>
-        
-        <!-- Missing Data Warning -->
-        <div id="missingAnswerWarning" class="hidden" style="padding: 12px; margin-bottom: 20px; background: var(--error-bg); color: var(--error); border: 1px solid var(--error); border-radius: 8px; font-weight: 600; font-size: 0.95em;">
-            <!-- Message set dynamically via JS -->
-        </div>
-        
-        <!-- Standard Options View -->
-        <div id="options" class="options-container"></div>
-        
-        <!-- INLINE EDIT FORM -->
-        <div id="editFormContainer" class="edit-form-container hidden">
-            <label style="font-weight:bold; color: var(--text);">Question Text:</label>
-            <textarea id="editQTextInput" style="height: 100px; margin-top: 8px; font-size:16px;"></textarea>
-            
-            <label style="font-weight:bold; color: var(--text); margin-top: 15px; display: block;">Options (Check the correct answers):</label>
-            <div id="editOptionsList" style="margin-top: 10px;"></div>
-            
-            <button id="addOptionBtn" class="action-btn" style="background: var(--secondary); padding: 8px 16px; font-size: 14px; margin-top: 10px; min-width: auto; flex: none;">+ Add Option</button>
-        </div>
-
-        <div id="explanationContainer" class="explanation-box">
-            <button id="toggleExplanationBtn" class="explanation-toggle">Show Explanation</button>
-            <div id="explanationText" class="explanation-content hidden"></div>
-        </div>
-
-        <div class="button-group">
-            <button id="submitBtn" class="action-btn">Submit</button>
-            <button id="nextBtn" class="action-btn hidden">Next</button>
-            
-            <button id="markBtn" class="action-btn btn-mark hidden">Mark Question</button>
-            
-            <button id="fixJsonBtn" class="action-btn btn-warning hidden">✏️ Edit Question</button>
-            <button id="saveDataBtn" class="action-btn btn-warning hidden" style="background: var(--warning); color: #000;">Save Changes</button>
-            <button id="cancelEditBtn" class="action-btn btn-warning hidden" style="background: var(--secondary); color: white;">Cancel</button>
-        </div>
-    </div>
-</div>
-
-<!-- Link to external JavaScript -->
-<script src="script.js"></script>
 </body>
 </html>
