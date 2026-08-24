@@ -3,7 +3,6 @@ let curIdx = 0;
 let isEditingQuestion = false;
 let appsScriptUrl = "";
 let globalNotes = null;
-
 // Temporary state for the inline editor
 let tempEditOptions = [];
 let tempEditAnswers = [];
