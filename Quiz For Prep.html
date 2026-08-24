@@ -128,6 +128,11 @@
         input[type="text"], input[type="password"] { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); color: var(--text); font-size: 16px; }
         textarea { width: 100%; height: 250px; margin: 20px 0; font-family: monospace; padding: 15px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; background: var(--card-bg); color: var(--text); transition: all 0.3s ease; }
         
+        .edit-form-container {
+            background: var(--edit-bg); padding: 20px; border: 1px dashed var(--warning);
+            border-radius: 8px; margin-bottom: 20px;
+        }
+
         /* Buttons */
         .button-group { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
         
@@ -287,7 +292,7 @@
     <button id="changeApiKeyBtn" class="top-btn api-key-btn hidden" title="Change API Key">🔑</button>
     <button id="checkAllBtn" class="top-btn hidden" title="Check All Questions with AI" style="background: var(--purple);">⭐ Check All</button>
     <button id="notesBtn" class="top-btn notes-btn hidden" title="Generate AI Study Notes">📝 Notes</button>
-    <button id="reuploadBtn" class="top-btn theme-btn hidden" title="Upload New JSON" style="background: var(--primary);">📂 New JSON</button>
+    <button id="reuploadBtn" class="top-btn hidden" title="Upload New JSON" style="background: var(--primary);">📂 New JSON</button>
     <button id="exportJsonBtn" class="top-btn export-btn hidden">Copy JSON</button>
     <button id="restartQuizBtn" class="top-btn restart-btn hidden">Restart Quiz</button>
     <button id="clearCacheBtn" class="top-btn clear-btn hidden">Unlink Services</button>
@@ -336,7 +341,6 @@
             </div>
         </details>
     </div>
-    <!-- End Setup Guide Section -->
 </div>
 
 <div id="jsonInputScreen" class="config-container card hidden">
@@ -370,15 +374,32 @@
                 <button id="copyQBtn" class="copy-btn" title="Copy Question to Clipboard">📋</button>
             </div>
         </h3>
-        <div id="qText" class="q-text"></div>
         
-        <!-- Added missing answer warning -->
-        <div id="missingAnswerWarning" class="hidden" style="padding: 12px; margin-bottom: 20px; background: var(--error-bg); color: var(--error); border: 1px solid var(--error); border-radius: 8px; font-weight: 600; font-size: 0.95em;">
-            ⚠️ Correct answer not provided in JSON. Use AI (✨) to fetch it, or click "Fix Correct Answer" to set it manually.
+        <!-- Standard Question View -->
+        <div id="qTextContainer" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 25px;">
+            <div id="qText" class="q-text" style="margin-bottom: 0;"></div>
+            <button id="editPenBtn" class="copy-btn" title="Edit Question & Options" style="font-size: 1.5em; margin-left: 10px;">✏️</button>
         </div>
         
+        <!-- Missing Data Warning -->
+        <div id="missingAnswerWarning" class="hidden" style="padding: 12px; margin-bottom: 20px; background: var(--error-bg); color: var(--error); border: 1px solid var(--error); border-radius: 8px; font-weight: 600; font-size: 0.95em;">
+            <!-- Message set dynamically via JS -->
+        </div>
+        
+        <!-- Standard Options View -->
         <div id="options" class="options-container"></div>
         
+        <!-- INLINE EDIT FORM -->
+        <div id="editFormContainer" class="edit-form-container hidden">
+            <label style="font-weight:bold; color: var(--text);">Question Text:</label>
+            <textarea id="editQTextInput" style="height: 100px; margin-top: 8px; font-size:16px;"></textarea>
+            
+            <label style="font-weight:bold; color: var(--text); margin-top: 15px; display: block;">Options (Check the correct answers):</label>
+            <div id="editOptionsList" style="margin-top: 10px;"></div>
+            
+            <button id="addOptionBtn" class="action-btn" style="background: var(--secondary); padding: 8px 16px; font-size: 14px; margin-top: 10px; min-width: auto; flex: none;">+ Add Option</button>
+        </div>
+
         <div id="explanationContainer" class="explanation-box">
             <button id="toggleExplanationBtn" class="explanation-toggle">Show Explanation</button>
             <div id="explanationText" class="explanation-content hidden"></div>
@@ -390,8 +411,8 @@
             
             <button id="markBtn" class="action-btn btn-mark hidden">Mark Question</button>
             
-            <button id="fixJsonBtn" class="action-btn btn-warning hidden">Fix Correct Answer</button>
-            <button id="saveDataBtn" class="action-btn btn-warning hidden" style="background: var(--warning); color: #000;">Save to Cloud</button>
+            <button id="fixJsonBtn" class="action-btn btn-warning hidden">✏️ Edit Question</button>
+            <button id="saveDataBtn" class="action-btn btn-warning hidden" style="background: var(--warning); color: #000;">Save Changes</button>
             <button id="cancelEditBtn" class="action-btn btn-warning hidden" style="background: var(--secondary); color: white;">Cancel</button>
         </div>
     </div>
@@ -400,9 +421,13 @@
 <script>
     let quizData = [];
     let curIdx = 0;
-    let isEditingData = false;
+    let isEditingQuestion = false;
     let appsScriptUrl = "";
     let globalNotes = null;
+    
+    // Temporary state for the inline editor
+    let tempEditOptions = [];
+    let tempEditAnswers = [];
 
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -441,9 +466,12 @@
         document.getElementById('submitBtn').addEventListener('click', submitAnswer);
         document.getElementById('nextBtn').addEventListener('click', nextQuestion);
         document.getElementById('markBtn').addEventListener('click', toggleMark);
-        document.getElementById('fixJsonBtn').addEventListener('click', startEditData);
+        
+        document.getElementById('editPenBtn').addEventListener('click', startEditQuestion);
+        document.getElementById('fixJsonBtn').addEventListener('click', startEditQuestion);
         document.getElementById('saveDataBtn').addEventListener('click', saveEditedData);
-        document.getElementById('cancelEditBtn').addEventListener('click', () => { isEditingData = false; renderQ(); });
+        document.getElementById('cancelEditBtn').addEventListener('click', () => { isEditingQuestion = false; renderQ(); });
+        document.getElementById('addOptionBtn').addEventListener('click', () => { tempEditOptions.push(""); renderEditOptionsUI(); });
 
         document.getElementById('geminiHelpBtn').addEventListener('click', fetchGeminiAnswer);
         document.getElementById('toggleExplanationBtn').addEventListener('click', toggleExplanation);
@@ -573,7 +601,8 @@
                 } else {
                     quizData = loadedQuizData.map(q => ({ 
                         ...q,
-                        correctAnswers: q.correctAnswers || [], // Added robust check for missing correct answers
+                        options: q.options || [],
+                        correctAnswers: q.correctAnswers || [],
                         userAnswer: q.userAnswer || null, 
                         status: q.status || null, 
                         marked: q.marked || false,
@@ -779,11 +808,13 @@ ${combinedExplanations}`;
             const batch = quizData.slice(i, i + batchSize);
             
             const batchPrompt = batch.map((q, idx) => {
-                const optionsString = q.options.map((opt, oIdx) => `[Index ${oIdx}]: ${opt}`).join('\n');
+                const optionsString = (q.options || []).length > 0 
+                    ? q.options.map((opt, oIdx) => `[Index ${oIdx}]: ${opt}`).join('\n')
+                    : "No options provided.";
                 return `Question ID: ${i + idx}\nQuestion: ${q.question}\nOptions:\n${optionsString}`;
             }).join('\n\n');
 
-            const prompt = `You are a technical quiz assistant. Given the following batch of questions, return the correct option index (or indices if multiple) and a brief explanation (max 400 characters) for each.
+            const prompt = `You are a technical quiz assistant. Given the following batch of questions, return the correct option index (or indices if multiple) and a brief explanation (max 400 characters) for each. If a question is entirely missing options, return an empty array for correctAnswers.
 
 Return strictly a valid JSON array of objects matching this schema, exactly in the order the questions were provided, no markdown blocks:
 [
@@ -811,14 +842,14 @@ ${batchPrompt}`;
                     results.forEach((result, idx) => {
                         const q = quizData[i + idx];
                         const oldAnswers = q.correctAnswers || [];
-                        const newAnswers = result.correctAnswers;
+                        const newAnswers = result.correctAnswers || [];
                         const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
-                        if (!isSame) {
+                        if (!isSame && (q.options || []).length > 0) {
                             changedQuestions.push({
                                 index: i + idx,
                                 question: q.question,
-                                options: q.options,
+                                options: q.options || [],
                                 oldAnswers: [...oldAnswers],
                                 newAnswers: [...newAnswers]
                             });
@@ -931,8 +962,13 @@ ${batchPrompt}`;
             alert("No API key found. Please click the '🔑' button at the top to add your API Key.");
             return;
         }
-
+        
         const q = quizData[curIdx];
+        if (!q.options || q.options.length === 0) {
+            alert("Cannot use AI because this question has no options. Please use the ✏️ edit tool to add options first.");
+            return;
+        }
+
         const geminiBtn = document.getElementById('geminiHelpBtn');
         geminiBtn.innerText = '⏳';
         geminiBtn.disabled = true;
@@ -955,7 +991,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
             const result = JSON.parse(rawOutput);
 
             const oldAnswers = q.correctAnswers || [];
-            const newAnswers = result.correctAnswers;
+            const newAnswers = result.correctAnswers || [];
             const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
             let dataUpdated = false;
@@ -1043,7 +1079,8 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
 
             quizData = rawData.map(q => ({
                 ...q,
-                correctAnswers: q.correctAnswers || [], // Added robust check for missing correct answers
+                options: q.options || [],
+                correctAnswers: q.correctAnswers || [],
                 userAnswer: null, 
                 status: null,
                 marked: false,
@@ -1092,7 +1129,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         });
         
         curIdx = 0;
-        isEditingData = false;
+        isEditingQuestion = false;
         
         syncStateToDrive();
         renderSidebar();
@@ -1137,7 +1174,7 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         let copyText = `Question: ${q.question}\n\n`;
         const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         
-        q.options.forEach((opt, i) => {
+        (q.options || []).forEach((opt, i) => {
             copyText += `${letters[i] || (i+1)}) ${opt}\n`;
         });
 
@@ -1154,9 +1191,9 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
     }
 
     function goToQuestion(index) {
-        if (isEditingData) {
-            if(!confirm("You are editing the correct answer. Discard changes?")) return;
-            isEditingData = false;
+        if (isEditingQuestion) {
+            if(!confirm("You have unsaved edits. Discard changes?")) return;
+            isEditingQuestion = false;
         }
         curIdx = index;
         syncStateToDrive(); 
@@ -1184,70 +1221,179 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         });
     }
 
+    // Inline Editing Logic
+    function startEditQuestion() {
+        const q = quizData[curIdx];
+        isEditingQuestion = true;
+        tempEditOptions = [...(q.options || [])];
+        tempEditAnswers = [...(q.correctAnswers || [])];
+        renderQ();
+    }
+
+    function renderEditOptionsUI() {
+        const container = document.getElementById('editOptionsList');
+        container.innerHTML = '';
+        
+        if (tempEditOptions.length === 0) {
+            container.innerHTML = `<em style="color: var(--secondary); font-size: 0.9em;">No options exist. Click "+ Add Option" below.</em>`;
+        }
+
+        tempEditOptions.forEach((opt, idx) => {
+            const row = document.createElement('div');
+            row.style = "display: flex; gap: 10px; align-items: center; margin-bottom: 10px;";
+            
+            const isCorrect = tempEditAnswers.includes(idx);
+            
+            const check = document.createElement('input');
+            check.type = 'checkbox';
+            check.checked = isCorrect;
+            check.style = "transform: scale(1.3); cursor: pointer;";
+            check.onchange = (e) => {
+                if(e.target.checked) tempEditAnswers.push(idx);
+                else tempEditAnswers = tempEditAnswers.filter(val => val !== idx);
+            };
+            
+            const textIn = document.createElement('input');
+            textIn.type = 'text';
+            textIn.value = opt;
+            textIn.style = "flex: 1; margin: 0; padding: 10px;";
+            textIn.oninput = (e) => tempEditOptions[idx] = e.target.value;
+            
+            const delBtn = document.createElement('button');
+            delBtn.innerText = '🗑️';
+            delBtn.className = 'copy-btn';
+            delBtn.title = "Delete Option";
+            delBtn.onclick = () => {
+                tempEditOptions.splice(idx, 1);
+                // Adjust correct answers down if they were above deleted index
+                tempEditAnswers = tempEditAnswers
+                    .filter(val => val !== idx)
+                    .map(val => val > idx ? val - 1 : val);
+                renderEditOptionsUI();
+            };
+            
+            row.appendChild(check);
+            row.appendChild(textIn);
+            row.appendChild(delBtn);
+            container.appendChild(row);
+        });
+    }
+
+    function saveEditedData() {
+        const q = quizData[curIdx];
+        q.question = document.getElementById('editQTextInput').value.trim();
+        q.options = tempEditOptions.map(o => o.trim());
+        q.correctAnswers = [...tempEditAnswers];
+        
+        if (q.options.length === 0) {
+            alert("Please add at least one option."); return;
+        }
+
+        // Reset user progress on this question since they changed options
+        q.userAnswer = null;
+        q.status = null;
+        
+        isEditingQuestion = false;
+        syncStateToDrive(); 
+        
+        renderQ();
+        renderSidebar();
+        
+        const qMeta = document.getElementById('qCount');
+        qMeta.innerHTML = `<span style="color: var(--success);">Saved Successfully!</span>`;
+        setTimeout(() => renderQ(), 2000);
+    }
+
     function renderQ() {
         const q = quizData[curIdx];
         const currentScore = quizData.filter(x => x.status === 'correct').length;
+        
+        const hasMissingOptions = !q.options || q.options.length === 0;
         const hasMissingAnswer = !q.correctAnswers || q.correctAnswers.length === 0;
         
         let metaText = `Question ${curIdx + 1} of ${quizData.length}`;
-        if (isEditingData) metaText += ` <span class="edit-badge">EDITING CLOUD DATA</span>`;
+        if (isEditingQuestion) metaText += ` <span class="edit-badge">EDITING</span>`;
         
         document.getElementById('qCount').innerHTML = metaText;
         document.getElementById('qScore').innerText = `Score: ${currentScore}`;
-        document.getElementById('qText').innerText = q.question;
         
-        // Show or hide the missing answer warning
+        const qTextContainer = document.getElementById('qTextContainer');
+        const qTextNode = document.getElementById('qText');
+        const optionsDiv = document.getElementById('options');
+        const editFormContainer = document.getElementById('editFormContainer');
         const warningEl = document.getElementById('missingAnswerWarning');
-        if (hasMissingAnswer && !isEditingData) {
-            warningEl.classList.remove('hidden');
-        } else {
+        const explanationContainer = document.getElementById('explanationContainer');
+
+        if (isEditingQuestion) {
+            qTextContainer.classList.add('hidden');
+            optionsDiv.classList.add('hidden');
             warningEl.classList.add('hidden');
-        }
-        
-        const optCont = document.getElementById('options');
-        optCont.innerHTML = '';
-        
-        const inputType = (!hasMissingAnswer && q.correctAnswers.length > 1) ? 'checkbox' : 'radio';
-        const isAnswered = q.status !== null;
-        
-        q.options.forEach((o, i) => {
-            const label = document.createElement('label');
-            label.className = 'option-label';
+            explanationContainer.classList.add('hidden');
             
-            const input = document.createElement('input');
-            input.type = inputType;
-            input.name = 'quizOption';
-            input.value = i;
+            editFormContainer.classList.remove('hidden');
+            document.getElementById('editQTextInput').value = q.question || "";
+            renderEditOptionsUI();
+        } else {
+            qTextContainer.classList.remove('hidden');
+            optionsDiv.classList.remove('hidden');
+            editFormContainer.classList.add('hidden');
+            explanationContainer.classList.remove('hidden');
             
-            if (isEditingData) {
-                input.disabled = false;
-                label.classList.add('edit-mode-label');
-                if (!hasMissingAnswer && q.correctAnswers.includes(i)) input.checked = true;
-            } else if (isAnswered) {
-                input.disabled = true;
-                label.classList.add('disabled');
-                
-                if (q.userAnswer && q.userAnswer.includes(i)) input.checked = true;
-                if (!hasMissingAnswer && q.correctAnswers.includes(i)) label.classList.add('correct');
-                else if (q.userAnswer && q.userAnswer.includes(i)) label.classList.add('incorrect');
+            qTextNode.innerText = q.question;
+            
+            // Build warning banner
+            if (hasMissingOptions && hasMissingAnswer) {
+                warningEl.innerText = "⚠️ Options and correct answer are missing. Click the ✏️ icon to fix.";
+                warningEl.classList.remove('hidden');
+            } else if (hasMissingOptions) {
+                warningEl.innerText = "⚠️ Options are missing. Click the ✏️ icon to fix.";
+                warningEl.classList.remove('hidden');
             } else if (hasMissingAnswer) {
-                // Disable inputs if no answer exists so user doesn't try to guess blindly
-                input.disabled = true;
-                label.classList.add('disabled');
+                warningEl.innerText = "⚠️ Correct answer not provided. Use AI (✨) to fetch it, or click the ✏️ icon to fix.";
+                warningEl.classList.remove('hidden');
+            } else {
+                warningEl.classList.add('hidden');
             }
+
+            // Build Options View
+            optionsDiv.innerHTML = '';
+            const inputType = (!hasMissingAnswer && q.correctAnswers.length > 1) ? 'checkbox' : 'radio';
+            const isAnswered = q.status !== null;
             
-            label.appendChild(input);
-            label.appendChild(document.createTextNode(' ' + o));
-            optCont.appendChild(label);
-        });
+            (q.options || []).forEach((o, i) => {
+                const label = document.createElement('label');
+                label.className = 'option-label';
+                
+                const input = document.createElement('input');
+                input.type = inputType;
+                input.name = 'quizOption';
+                input.value = i;
+                
+                if (isAnswered) {
+                    input.disabled = true;
+                    label.classList.add('disabled');
+                    
+                    if (q.userAnswer && q.userAnswer.includes(i)) input.checked = true;
+                    if (!hasMissingAnswer && q.correctAnswers.includes(i)) label.classList.add('correct');
+                    else if (q.userAnswer && q.userAnswer.includes(i)) label.classList.add('incorrect');
+                } else if (hasMissingAnswer || hasMissingOptions) {
+                    input.disabled = true;
+                    label.classList.add('disabled');
+                }
+                
+                label.appendChild(input);
+                label.appendChild(document.createTextNode(' ' + o));
+                optionsDiv.appendChild(label);
+            });
+            
+            const explanationText = document.getElementById('explanationText');
+            const toggleExplanationBtn = document.getElementById('toggleExplanationBtn');
+            explanationText.classList.add('hidden'); 
+            toggleExplanationBtn.innerText = "Show Explanation";
+            explanationText.innerText = q.explanation ? q.explanation : ""; 
+        }
 
-        const explanationText = document.getElementById('explanationText');
-        const toggleExplanationBtn = document.getElementById('toggleExplanationBtn');
-        
-        explanationText.classList.add('hidden'); 
-        toggleExplanationBtn.innerText = "Show Explanation";
-        explanationText.innerText = q.explanation ? q.explanation : ""; 
-
+        // Button Visibility Logic
         const submitBtn = document.getElementById('submitBtn');
         const nextBtn = document.getElementById('nextBtn');
         const markBtn = document.getElementById('markBtn');
@@ -1255,7 +1401,6 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         const saveDataBtn = document.getElementById('saveDataBtn');
         const cancelEditBtn = document.getElementById('cancelEditBtn');
         
-        markBtn.classList.remove('hidden');
         if (q.marked) {
             markBtn.innerText = 'Unmark Question';
             markBtn.classList.add('is-marked');
@@ -1264,20 +1409,19 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
             markBtn.classList.remove('is-marked');
         }
 
-        if (isEditingData) {
+        if (isEditingQuestion) {
             submitBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); markBtn.classList.add('hidden');
             fixJsonBtn.classList.add('hidden'); saveDataBtn.classList.remove('hidden'); cancelEditBtn.classList.remove('hidden');
-        } else if (hasMissingAnswer) {
-            // Force the user to fix the JSON if the answer is missing
-            submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden');
+        } else if (hasMissingAnswer || hasMissingOptions) {
+            submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden'); markBtn.classList.remove('hidden');
             saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
             nextBtn.innerText = "Skip Question";
-        } else if (isAnswered) {
-            submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden');
+        } else if (q.status !== null) { // isAnswered
+            submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden'); markBtn.classList.remove('hidden');
             saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
             nextBtn.innerText = (curIdx === quizData.length - 1) ? "Finish Quiz" : "Next Question";
         } else {
-            submitBtn.classList.remove('hidden'); fixJsonBtn.classList.add('hidden'); nextBtn.classList.add('hidden');
+            submitBtn.classList.remove('hidden'); fixJsonBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); markBtn.classList.remove('hidden');
             saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
         }
     }
@@ -1304,40 +1448,6 @@ Return strictly a valid JSON object matching this schema, no markdown blocks:
         syncStateToDrive();
         renderQ(); 
         renderSidebar();
-    }
-
-    function startEditData() {
-        isEditingData = true;
-        renderQ(); 
-    }
-
-    function saveEditedData() {
-        const q = quizData[curIdx];
-        const inputs = document.querySelectorAll('input[name="quizOption"]');
-        const newCorrectAnswers = Array.from(inputs).filter(i => i.checked).map(i => parseInt(i.value));
-        
-        if(newCorrectAnswers.length === 0) {
-            alert("You must select at least one option as the correct answer for the Cloud DB.");
-            return;
-        }
-
-        q.correctAnswers = newCorrectAnswers;
-        
-        if (q.userAnswer) {
-            const isCorrect = q.userAnswer.length === q.correctAnswers.length && q.userAnswer.every(val => q.correctAnswers.includes(val));
-            q.status = isCorrect ? 'correct' : 'incorrect';
-        }
-
-        isEditingData = false;
-        
-        syncStateToDrive(); 
-        
-        renderQ();
-        renderSidebar();
-        
-        const qMeta = document.getElementById('qCount');
-        qMeta.innerHTML = `<span style="color: var(--success);">Cloud Updated Successfully!</span>`;
-        setTimeout(() => renderQ(), 2000);
     }
 
     function nextQuestion() {
