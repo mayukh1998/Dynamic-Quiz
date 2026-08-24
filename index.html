@@ -60,7 +60,17 @@
     <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec">
     <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key (Optional but required for ✨ features)">
     <button id="loadBtn" class="action-btn">Load System</button>
-    <p id="loadingMsg" class="hidden" style="color: var(--primary); font-weight: bold; margin-top: 15px;">⏳ Communicating with Google Drive...</p>
+    
+    <!-- New Progress Bar Container -->
+    <div id="loadProgressContainer" class="hidden" style="margin-top: 25px; padding: 15px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
+        <p id="loadProgressText" style="color: var(--primary); font-weight: bold; margin: 0 0 12px 0; display: flex; justify-content: space-between;">
+            <span>⏳ Communicating with Google Drive...</span>
+        </p>
+        <div style="background: var(--border); border-radius: 8px; height: 14px; overflow: hidden; width: 100%;">
+            <div id="loadProgressBar" style="background: var(--primary); width: 0%; height: 100%; transition: width 0.5s ease-out, background-color 0.3s ease;"></div>
+        </div>
+        <p id="loadErrorText" class="hidden" style="color: var(--danger); font-size: 0.9em; font-weight: 600; margin: 12px 0 0 0;"></p>
+    </div>
 
     <!-- Setup Guide Section -->
     <div class="guide-section" style="margin: 25px 0 10px 0; padding: 15px; background: var(--edit-bg); border: 1px dashed var(--warning); border-radius: 8px; font-size: 0.95em;">
