@@ -300,7 +300,45 @@
     <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key (Optional but required for ✨ features)">
     <button id="loadBtn" class="action-btn">Load System</button>
     <p id="loadingMsg" class="hidden" style="color: var(--primary); font-weight: bold; margin-top: 15px;">⏳ Communicating with Google Drive...</p>
+
+    <!-- Added Setup Guide Section -->
+    <div class="guide-section" style="margin: 25px 0 10px 0; padding: 15px; background: var(--edit-bg); border: 1px dashed var(--warning); border-radius: 8px; font-size: 0.95em;">
+        <details>
+            <summary style="font-weight: bold; cursor: pointer; color: var(--primary-hover); outline: none;">📖 How to setup Google Apps Script & JSON Format</summary>
+            <div style="margin-top: 15px; color: var(--text);">
+                <h4 style="margin-top: 0;">1. Google Apps Script Setup</h4>
+                <ol style="padding-left: 20px; line-height: 1.6;">
+                    <li>Create a blank text file in your Google Drive. Right-click it, select <strong>Share</strong>, and set general access to <strong>Anyone with the link</strong>.</li>
+                    <li>Copy the <strong>File ID</strong> from the sharing link (the long string of characters between <code>/d/</code> and <code>/view</code>).</li>
+                    <li>Go to <a href="https://script.google.com" target="_blank" style="color: var(--primary);">script.google.com</a> and click <strong>New Project</strong>.</li>
+                    <li>Open this <a href="https://docs.google.com/document/d/16jmzlkyOZBvo28CyPSjJifSOuhsWieFGZusJhTzh8Yg/edit?usp=drivesdk" target="_blank" style="color: var(--primary);"><strong>Sample Google Script</strong></a>, copy its contents, and paste it into your new Apps Script project.</li>
+                    <li>Inside the script editor, locate the variable for the File ID and replace it with the one you copied in Step 2.</li>
+                    <li>Click <strong>Deploy</strong> &gt; <strong>New deployment</strong> in the top right.</li>
+                    <li>Select the gear icon and choose <strong>Web app</strong>.</li>
+                    <li>Set <em>Execute as</em> to <strong>Me</strong> and <em>Who has access</em> to <strong>Anyone</strong>.</li>
+                    <li>Click <strong>Deploy</strong>, copy the resulting <strong>Web app URL</strong>, and paste it in the input above.</li>
+                </ol>
+                
+                <h4>2. JSON Question Format Example</h4>
+                <p>Your quiz data must be a JSON array of objects. Use 0-based indexing for <code>correctAnswers</code> (e.g., 0 is the first option). The app supports multiple correct answers.</p>
+                <pre style="background: var(--card-bg); padding: 12px; border: 1px solid var(--border); border-radius: 6px; overflow-x: auto; font-family: monospace; font-size: 0.9em;">[
+  {
+    "question": "What is the capital of France?",
+    "options": ["Berlin", "London", "Paris", "Rome"],
+    "correctAnswers": [2]
+  },
+  {
+    "question": "Which of these are primary colors?",
+    "options": ["Red", "Green", "Blue", "Yellow"],
+    "correctAnswers": [0, 2]
+  }
+]</pre>
+            </div>
+        </details>
+    </div>
+    <!-- End Setup Guide Section -->
 </div>
+
 
 <div id="jsonInputScreen" class="config-container card hidden">
     <h2 id="jsonScreenTitle">Upload Quiz Data</h2>
