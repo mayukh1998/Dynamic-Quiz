@@ -130,13 +130,20 @@ async function initiateLoad(isManual) {
     const loadProgressText = document.getElementById('loadProgressText');
     const loadProgressBar = document.getElementById('loadProgressBar');
     const loadErrorText = document.getElementById('loadErrorText');
+    const loadBtn = document.getElementById('loadBtn');
     
-    // Reset Progress UI
+    // 1. Show the Progress UI instantly
     loadProgressContainer.classList.remove('hidden');
     loadErrorText.classList.add('hidden');
-    loadProgressBar.style.width = '10%';
+    loadProgressBar.style.width = '15%';
     loadProgressBar.style.backgroundColor = 'var(--primary)';
-    document.getElementById('loadBtn').disabled = true;
+    loadProgressText.innerHTML = "<span>⏳ Preparing...</span>";
+    loadBtn.disabled = true;
+
+    // 2. CRITICAL FIX: Force the browser to render the progress bar BEFORE doing anything else.
+    // Without this brief delay, the browser freezes to show the confirm() popup or fetch data 
+    // before it has a chance to visually draw the bar on your screen!
+    await delay(150); 
 
     try {
         const cachedData = localStorage.getItem('quizDataFull');
@@ -156,7 +163,6 @@ async function initiateLoad(isManual) {
             
             const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes };
             
-            // Simulate waiting progress
             setTimeout(() => { if (loadProgressBar.style.width !== '100%') loadProgressBar.style.width = '70%'; }, 1000);
 
             const response = await fetch(appsScriptUrl, {
@@ -168,21 +174,25 @@ async function initiateLoad(isManual) {
             if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
             
             loadProgressBar.style.width = '100%';
+            loadProgressText.innerHTML = "<span style='color: var(--success);'>✅ Cloud Sync Complete!</span>";
             localStorage.setItem('gasWebUrl', appsScriptUrl);
-            setTimeout(() => startApp(), 500); // Slight delay to let user see 100%
+            
+            // Give user time to see 100% completion before screen switches
+            await delay(600);
+            startApp();
             
         } else {
             loadProgressText.innerHTML = "<span>⏳ Fetching from Google Drive...</span>";
-            loadProgressBar.style.width = '35%';
+            loadProgressBar.style.width = '45%';
             
-            // Simulate waiting progress
-            setTimeout(() => { if (loadProgressBar.style.width !== '100%') loadProgressBar.style.width = '75%'; }, 1500);
+            setTimeout(() => { if (loadProgressBar.style.width !== '100%') loadProgressBar.style.width = '80%'; }, 1000);
             
             const response = await fetch(appsScriptUrl);
             if (!response.ok) throw new Error(`HTTP Status ${response.status}`);
             const data = await response.json();
             
             loadProgressBar.style.width = '100%';
+            loadProgressText.innerHTML = "<span style='color: var(--success);'>✅ Data Fetched!</span>";
             
             let loadedQuizData = [];
             let loadedIdx = 0;
@@ -195,6 +205,9 @@ async function initiateLoad(isManual) {
                 globalNotes = data.quizNotes || null; 
             }
 
+            // Give user time to see 100% completion before screen switches
+            await delay(600);
+
             if (loadedQuizData.length === 0) {
                 localStorage.setItem('gasWebUrl', appsScriptUrl);
                 document.getElementById('configScreen').classList.add('hidden');
@@ -203,7 +216,6 @@ async function initiateLoad(isManual) {
                 document.getElementById('jsonScreenDesc').innerText = "Your Google Drive file is currently empty. Paste your JSON array below to initialize it.";
                 document.getElementById('cancelJsonBtn').classList.add('hidden');
                 
-                // Hide progress bar for next time
                 setTimeout(() => loadProgressContainer.classList.add('hidden'), 500);
             } else {
                 quizData = loadedQuizData.map(q => ({ 
@@ -218,7 +230,7 @@ async function initiateLoad(isManual) {
                 curIdx = loadedIdx;
                 saveState();
                 localStorage.setItem('gasWebUrl', appsScriptUrl);
-                setTimeout(() => startApp(), 500);
+                startApp();
             }
         }
     } catch (error) {
@@ -229,7 +241,7 @@ async function initiateLoad(isManual) {
         loadErrorText.innerText = `Error: ${error.message || 'Failed to communicate with Google Drive.'} Please ensure your Web App URL is correct, deployed as 'Anyone', and you are connected to the internet.`;
         loadErrorText.classList.remove('hidden');
     } finally {
-        document.getElementById('loadBtn').disabled = false;
+        loadBtn.disabled = false;
     }
 }
 
