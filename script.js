@@ -399,7 +399,10 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     const modelDisplay = document.getElementById('progressModelText');
     const errorDisplay = document.getElementById('progressErrorText');
     
-    if (modelDisplay) modelDisplay.innerText = `Model: ${model}`;
+    // ALWAYS force the UI to show the exact model we are about to ping
+    if (modelDisplay) {
+        modelDisplay.innerText = `Model: ${model}`;
+    }
 
     const buildBody = () => ({
         contents: [{ parts: [{ text: prompt }] }],
@@ -411,20 +414,34 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         }
     });
 
-    const callModel = (m) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify(buildBody())
-    });
-
-    const parseError = async (res) => {
-        const text = await res.clone().text();
-        let msg = `HTTP Status ${res.status}`;
+    // Wrapper to safely execute fetch and catch pure network/CORS failures
+    const callModel = async (m) => {
         try {
-            const errData = JSON.parse(text);
-            msg = errData.error?.message || msg;
-        } catch(e) {}
-        return msg;
+            return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                body: JSON.stringify(buildBody())
+            });
+        } catch (err) {
+            // Catches strict network errors so they don't break the retry loop
+            return { ok: false, status: 0, networkError: "Network connection failed or timed out." };
+        }
+    };
+
+    // Safely parse the error without crashing on network mock objects
+    const parseError = async (res) => {
+        if (res.networkError) return res.networkError;
+        try {
+            const text = await res.clone().text();
+            let msg = `HTTP Status ${res.status}`;
+            try {
+                const errData = JSON.parse(text);
+                msg = errData.error?.message || msg;
+            } catch(e) {}
+            return msg;
+        } catch(e) {
+            return "Failed to parse API error.";
+        }
     };
 
     let response = await callModel(model);
@@ -433,40 +450,54 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         let errorMessage = await parseError(response);
         console.warn(`Primary model (${model}) failed:`, response.status, errorMessage);
         
-        if (!customModel && (response.status === 429 || response.status >= 500)) {
+        // Phase 1: Retry for BOTH custom and default models if Rate Limited, Server Error, or Network Drop (Status 0)
+        if (response.status === 429 || response.status >= 500 || response.status === 0) {
             if (errorDisplay) {
-                for (let sec = 30; sec > 0; sec--) {
+                for (let sec = 20; sec > 0; sec--) {
                     errorDisplay.style.color = "var(--yellow)";
-                    errorDisplay.innerText = `High demand (${errorMessage}). Retrying primary model in ${sec}s...`;
+                    errorDisplay.innerText = `High demand/Network issue. Retrying model in ${sec}s...`;
                     await delay(1000);
                 }
-                errorDisplay.innerText = "Retrying primary model...";
+                errorDisplay.innerText = "Retrying model...";
             }
 
             response = await callModel(model);
 
-            if (!response.ok && (response.status === 429 || response.status >= 500)) {
+            // Phase 2: If retry fails again...
+            if (!response.ok) {
                 errorMessage = await parseError(response);
-                if (errorDisplay) {
-                    for (let sec = 10; sec > 0; sec--) {
-                        errorDisplay.style.color = "var(--orange)";
-                        errorDisplay.innerText = `Retry failed. Switching to fallback model in ${sec}s...`;
-                        await delay(1000);
+                
+                // ONLY fallback if it's NOT a custom model, and the error allows fallback
+                if (!customModel && (response.status === 429 || response.status >= 500 || response.status === 0)) {
+                    if (errorDisplay) {
+                        for (let sec = 10; sec > 0; sec--) {
+                            errorDisplay.style.color = "var(--orange)";
+                            errorDisplay.innerText = `Retry failed. Switching to fallback model in ${sec}s...`;
+                            await delay(1000);
+                        }
+                        errorDisplay.innerText = "Switching to fallback model...";
                     }
-                    errorDisplay.innerText = "Switching to fallback model...";
+
+                    if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
+                    response = await callModel(fallbackModel);
+                } else {
+                    // Throw error if it's a custom model or a hard rejection (400/403)
+                    throw new Error(errorMessage);
                 }
-                if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
-                response = await callModel(fallbackModel);
             }
+            
             if (response.ok && errorDisplay) errorDisplay.innerText = "";
+            
         } else {
+            // Hard errors (400, 403, 404) do not retry
             throw new Error(errorMessage);
         }
     }
 
+    // Final check if fallback (or any final attempt) failed
     if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `HTTP Status ${response.status}`);
+        const finalError = await parseError(response);
+        throw new Error(finalError);
     }
     
     const data = await response.json();
