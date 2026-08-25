@@ -215,7 +215,7 @@ body {
 .meta-left { font-size: 0.95em; color: var(--secondary); font-weight: 500; }
 .meta-right { display: flex; gap: 10px; }
 
-.q-text { font-size: 1.4em; margin-bottom: 30px; font-weight: 600; line-height: 1.5; }
+.q-text { font-size: 1.2em; margin-bottom: 30px; font-weight: 600; line-height: 1.5; }
 
 /* Quiz Options */
 .options-container { display: flex; flex-direction: column; gap: 14px; }
