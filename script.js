@@ -508,9 +508,9 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
 
     if (!text) {
         const reason = candidate?.finishReason || data.promptFeedback?.blockReason;
-        if (reason === 'MAX_TOKENS') throw new Error("AI response was cut off (ran out of output tokens). Try a smaller batch size.");
-        if (reason) throw new Error(`AI returned no usable content (reason: ${reason}).`);
-        throw new Error("AI returned an empty response.");
+        if (reason === 'MAX_TOKENS') throw new Error("AI Agent's response was cut off (ran out of output tokens). Try a smaller batch size.");
+        if (reason) throw new Error(`AI Agent returned no usable content (reason: ${reason}).`);
+        throw new Error("AI Agent returned an empty response.");
     }
     return text;
 }
@@ -532,7 +532,7 @@ async function checkAllWithGemini() {
     let btn = "Start Check";
     
     if (savedProgress > 0) {
-        confirmMsg = `Resume pending AI check from question ${savedProgress + 1}?<br><br>Click Resume to continue where you left off.`;
+        confirmMsg = `Resume pending AI Agent's check from question ${savedProgress + 1}?<br><br>Click Resume to continue where you left off.`;
         title = "Resume Check";
         btn = "Resume";
     }
@@ -626,7 +626,7 @@ Instructions:
                 const results = JSON.parse(rawOutput);
 
                 if (!Array.isArray(results) || results.length !== batch.length) {
-                        throw new Error("AI returned incorrect number of results in batch array.");
+                        throw new Error("AI Agent returned incorrect number of results in batch array.");
                 }
 
                 results.forEach((result, idx) => {
@@ -715,7 +715,7 @@ function showReviewModal(changes) {
     content.innerHTML = '';
     
     if (!changes || changes.length === 0) {
-        content.innerHTML = '<em style="color: var(--secondary);">No answers were modified during the last AI batch check. All existing answers matched the AI\'s evaluation.</em>';
+        content.innerHTML = `<em style="color: var(--secondary);">No answers were modified during the last AI Agent's batch check. All existing answers matched the AI\'s evaluation.</em>`;
     } else {
         changes.forEach(change => {
             const oldText = change.oldAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
@@ -771,7 +771,7 @@ async function fetchGeminiAnswer() {
     
     const q = quizData[curIdx];
     if (!q.options || q.options.length === 0) { 
-        await customAlert("Cannot use AI because this question has no options. Please use the edit tool to add options first.", "Missing Options"); 
+        await customAlert("Cannot use AI Agent because this question has no options. Please use the edit tool to add options first.", "Missing Options"); 
         return; 
     }
 
@@ -792,7 +792,7 @@ async function fetchGeminiAnswer() {
     const modelDisplay = document.getElementById('progressModelText');
 
     title.innerText = "✨ Analyzing Question...";
-    desc.innerText = "AI is evaluating the options against official documentation.";
+    desc.innerText = "AI Agent is evaluating the options against official documentation.";
     bar.style.width = '100%';
     bar.classList.add('pulsing');
     text.innerText = "Single Verification";
@@ -849,8 +849,8 @@ Instructions:
             const formattedNew = formatIndicesToLetters(newAnswers);
             const formattedOld = formatIndicesToLetters(oldAnswers);
             const userConfirmed = await customConfirm(
-                `The AI suggests the correct answer is: <b>${formattedNew}</b>.<br>Your JSON currently has: <b>${formattedOld}</b>.<br><br>Do you want to update your JSON DB with this answer?`,
-                "AI Answer Update", "Update Answer", "btn-green"
+                `AI Agent suggests the correct answer is: <b>${formattedNew}</b>.<br>Your JSON currently has: <b>${formattedOld}</b>.<br><br>Do you want to update your JSON DB with this answer?`,
+                "Agent's Answer Update", "Update Answer", "btn-green"
             );
             if (userConfirmed) {
                 q.correctAnswers = newAnswers;
@@ -884,7 +884,7 @@ Instructions:
         bar.classList.remove('pulsing');
         overlay.classList.add('hidden');
         modal.classList.add('hidden');
-        await customAlert(`Failed to reach AI: ${err.message}`, "AI Error");
+        await customAlert(`Failed to reach AI Agent: ${err.message}`, "AI Agent Error");
     } finally {
         geminiBtn.innerHTML = originalGeminiBtnHTML;
         geminiBtn.style.opacity = '1';
@@ -908,7 +908,7 @@ async function handleNotesGeneration(force = false) {
 
     const explanations = quizData.map(q => q.explanation).filter(exp => exp && exp.trim() !== "");
     if (explanations.length === 0) {
-        await customAlert("No explanations found. Please generate explanations using AI first.", "Cannot Generate Notes");
+        await customAlert("No explanations found. Please generate explanations using AI Agent first.", "Cannot Generate Notes");
         return;
     }
 
@@ -950,7 +950,7 @@ ${combinedExplanations}`;
     const modelDisplay = document.getElementById('progressModelText');
 
     title.innerText = "✨ Generating Study Notes...";
-    desc.innerText = "AI is synthesizing all explanations into a formatted markdown guide.";
+    desc.innerText = "AI Agent is synthesizing all explanations into a formatted markdown guide.";
     bar.style.width = '100%';
     bar.classList.add('pulsing');
     text.innerText = "Compiling Notes";
@@ -1258,7 +1258,7 @@ function renderQ() {
         
         if (hasMissingOptions && hasMissingAnswer) { warningEl.innerText = "⚠️ Options and correct answer are missing. Click the pencil icon to fix."; warningEl.classList.remove('hidden'); }
         else if (hasMissingOptions) { warningEl.innerText = "⚠️ Options are missing. Click the pencil icon to fix."; warningEl.classList.remove('hidden'); }
-        else if (hasMissingAnswer) { warningEl.innerText = "⚠️ Correct answer not provided. Use AI to fetch it, or click the pencil icon to fix."; warningEl.classList.remove('hidden'); }
+        else if (hasMissingAnswer) { warningEl.innerText = "⚠️ Correct answer not provided. Use AI Agent to fetch it, or click the pencil icon to fix."; warningEl.classList.remove('hidden'); }
         else { warningEl.classList.add('hidden'); }
 
         optionsDiv.innerHTML = '';
