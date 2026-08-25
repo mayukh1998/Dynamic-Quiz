@@ -328,14 +328,14 @@ function formatIndicesToLetters(indicesArray) {
 }
 
 async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
-    // Defaulting to 3.7-flash as requested
     let defaultModel = 'gemini-3.7-flash'; 
     let customModel = localStorage.getItem('geminiModelName');
     let model = customModel || defaultModel;
     
-    // Updates UI but skips updating if a fallback was triggered to prevent visual flickering
     const modelDisplay = document.getElementById('progressModelText');
-    if (modelDisplay && !modelDisplay.innerText.includes('Fallback')) {
+    
+    // ALWAYS force the UI to show the exact model we are about to ping
+    if (modelDisplay) {
         modelDisplay.innerText = `Model: ${model}`;
     }
 
@@ -357,21 +357,21 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
 
     let response = await callModel(model);
 
-    // If the request fails, read the exact error from Google's API
     if (!response.ok) {
         const errorText = await response.clone().text();
         console.warn(`Primary model (${model}) failed:`, response.status, errorText);
         
-        // ONLY fallback if it's a Rate Limit (429) or Server Error (5xx). 
-        // If it's 400 (Bad Request) or 403/404, falling back hides the real issue.
+        // Only fallback if we hit a Rate Limit (429) or Server Error (5xx)
         if ((response.status === 429 || response.status >= 500) && !customModel) {
-            let fallbackModel = 'gemini-3.5-flash';
+            // Using 3.5-flash as the highly reliable fallback
+            let fallbackModel = 'gemini-3.5-flash-lite'; 
             
-            if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
+            // Instantly update the UI to show the fallback model taking over in real-time
+            if (modelDisplay) {
+                modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
+            }
             response = await callModel(fallbackModel);
         } else {
-            // It's a hard error (e.g., 403 Forbidden or 404 Not Found).
-            // Parse and throw it immediately so it displays in your red UI banner.
             let errorMessage = `HTTP Status ${response.status}`;
             try {
                 const errData = JSON.parse(errorText);
