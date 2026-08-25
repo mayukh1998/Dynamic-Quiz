@@ -410,7 +410,7 @@ function formatIndicesToLetters(indicesArray) {
 }
 
 async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
-    let defaultModel = 'gemini-3.7-flash'; 
+    let defaultModel = 'gemini-3.6-flash'; 
     let fallbackModel = 'gemini-3.5-flash-lite';
     
     let customModel = localStorage.getItem('geminiModelName');
@@ -601,7 +601,7 @@ async function startBatchCheck(startIndex) {
     text.innerText = `${completed} / ${total}`;
     errorText.innerText = "";
     
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
     modelDisplay.innerText = `Model: ${displayModel}`;
     
     await delay(50);
@@ -838,7 +838,7 @@ async function fetchGeminiAnswer() {
     text.innerText = "Single Verification";
     errorText.innerText = "";
     
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
     modelDisplay.innerText = `Model: ${displayModel}`;
 
     // NEW: Initialize controller
@@ -1001,7 +1001,7 @@ ${combinedExplanations}`;
     text.innerText = "Compiling Notes";
     errorText.innerText = "";
     
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
     modelDisplay.innerText = `Model: ${displayModel}`;
 
     overlay.classList.remove('hidden');
