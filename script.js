@@ -2,11 +2,13 @@ let quizData = [];
 let curIdx = 0;
 let isEditingQuestion = false;
 let appsScriptUrl = "";
+let globalNotes = null;
+let globalLastReview = null; // NEW: Stores the history of the last AI batch check
 let tempEditOptions = [];
 let tempEditAnswers = [];
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-g
+
 const SINGLE_ANSWER_SCHEMA = {
     type: "OBJECT",
     properties: {
@@ -60,6 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cancelApiSettingsBtn').addEventListener('click', closeApiSettingsModal);
 
     document.getElementById('checkAllBtn').addEventListener('click', checkAllWithGemini);
+    document.getElementById('recheckAllBtn').addEventListener('click', forceRecheckAll); // NEW
     
     document.getElementById('notesBtn').addEventListener('click', () => handleNotesGeneration(false));
     document.getElementById('regenerateNotesBtn').addEventListener('click', () => handleNotesGeneration(true));
@@ -168,7 +171,9 @@ async function unlinkDrive() {
     localStorage.removeItem('quizDataFull');
     localStorage.removeItem('quizProgress');
     localStorage.removeItem('quizNotes'); 
+    localStorage.removeItem('quizLastReview'); // Clear review cache
     localStorage.removeItem('checkAllProgress');
+    globalLastReview = null;
     location.reload();
 }
 
@@ -273,8 +278,9 @@ async function initiateLoad(isManual) {
             quizData = JSON.parse(cachedData);
             curIdx = parseInt(localStorage.getItem('quizProgress')) || 0;
             globalNotes = localStorage.getItem('quizNotes') || null;
+            globalLastReview = JSON.parse(localStorage.getItem('quizLastReview')) || null; // NEW
             
-            const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes };
+            const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes, lastReview: globalLastReview };
             
             setTimeout(() => { if (loadProgressBar.style.width !== '100%') loadProgressBar.style.width = '70%'; }, 1000);
 
@@ -315,6 +321,7 @@ async function initiateLoad(isManual) {
                 loadedQuizData = data.quizData;
                 loadedIdx = data.curIdx || 0;
                 globalNotes = data.quizNotes || null; 
+                globalLastReview = data.lastReview || null; // NEW
             }
 
             await delay(600);
@@ -360,7 +367,9 @@ async function syncStateToDrive() {
     if (!appsScriptUrl) return;
     updateSyncStatus('saving');
     saveState();
-    const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes };
+    
+    // Now pushes the globalLastReview back into the cloud object
+    const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes, lastReview: globalLastReview };
 
     try {
         const response = await fetch(appsScriptUrl, {
@@ -380,6 +389,7 @@ function saveState() {
     localStorage.setItem('quizDataFull', JSON.stringify(quizData));
     localStorage.setItem('quizProgress', curIdx);
     localStorage.setItem('quizNotes', globalNotes || "");
+    localStorage.setItem('quizLastReview', JSON.stringify(globalLastReview)); // NEW
 }
 
 function formatIndicesToLetters(indicesArray) {
@@ -398,7 +408,6 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     const modelDisplay = document.getElementById('progressModelText');
     const errorDisplay = document.getElementById('progressErrorText');
     
-    // ALWAYS force the UI to show the exact model we are about to ping
     if (modelDisplay) {
         modelDisplay.innerText = `Model: ${model}`;
     }
@@ -413,7 +422,6 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         }
     });
 
-    // Wrapper to safely execute fetch and catch pure network/CORS failures
     const callModel = async (m) => {
         try {
             return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
@@ -422,12 +430,10 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
                 body: JSON.stringify(buildBody())
             });
         } catch (err) {
-            // Catches strict network errors so they don't break the retry loop
             return { ok: false, status: 0, networkError: "Network connection failed or timed out." };
         }
     };
 
-    // Safely parse the error without crashing on network mock objects
     const parseError = async (res) => {
         if (res.networkError) return res.networkError;
         try {
@@ -449,10 +455,8 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         let errorMessage = await parseError(response);
         console.warn(`Primary model (${model}) failed:`, response.status, errorMessage);
         
-        // Phase 1: Retry for BOTH custom and default models if Rate Limited, Server Error, or Network Drop
         if (response.status === 429 || response.status >= 500 || response.status === 0) {
             
-            // Dynamically set timer to 45 seconds specifically for "high demand" errors
             let retryWaitTime = errorMessage.toLowerCase().includes("high demand") ? 45 : 20;
 
             if (errorDisplay) {
@@ -466,11 +470,9 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
 
             response = await callModel(model);
 
-            // Phase 2: If retry fails again...
             if (!response.ok) {
                 errorMessage = await parseError(response);
                 
-                // ONLY fallback if it's NOT a custom model, and the error allows fallback
                 if (!customModel && (response.status === 429 || response.status >= 500 || response.status === 0)) {
                     if (errorDisplay) {
                         for (let sec = 10; sec > 0; sec--) {
@@ -484,7 +486,6 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
                     if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
                     response = await callModel(fallbackModel);
                 } else {
-                    // Throw error if it's a custom model or a hard rejection (400/403)
                     throw new Error(errorMessage);
                 }
             }
@@ -492,12 +493,10 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
             if (response.ok && errorDisplay) errorDisplay.innerText = "";
             
         } else {
-            // Hard errors (400, 403, 404) do not retry
             throw new Error(errorMessage);
         }
     }
 
-    // Final check if fallback (or any final attempt) failed
     if (!response.ok) {
         const finalError = await parseError(response);
         throw new Error(finalError);
@@ -516,140 +515,18 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     return text;
 }
 
-async function handleNotesGeneration(force = false) {
-    if (globalNotes && !force) {
-        renderNotesModal(globalNotes);
-        return;
-    }
-    const apiKey = localStorage.getItem('geminiApiKey');
-    if (!apiKey) {
-        await customAlert("No API key found. Please open Settings to add it.", "Missing API Key");
-        return;
-    }
-
-    const explanations = quizData.map(q => q.explanation).filter(exp => exp && exp.trim() !== "");
-    if (explanations.length === 0) {
-        await customAlert("No explanations found. Please generate explanations using AI first.", "Cannot Generate Notes");
-        return;
-    }
-
-    const combinedExplanations = explanations.join("\n\n");
-    const prompt = `You are an expert exam prep assistant. Combine the following quiz explanations and synthesize them into a highly organized, beautifully formatted study guide. 
-
-FORMATTING & CONTENT RULES:
-1. Use clear Markdown Headings (### Topic Name) to group similar concepts logically.
-2. Use bullet points (-) for key facts under each heading.
-3. Bold (**text**) the most critical terms, tool names, or formulas.
-4. CRITICAL FILTER: Extract ONLY the facts related to the correct answers and core concepts. Completely ignore any text discussing why alternative options or distractors are incorrect. The study guide must only contain true facts and correct workflows.
-5. Keep explanations incredibly concise and punchy. No fluff.
-
-Return strictly a valid JSON object matching this schema:
-{
-"notes": "string (your formatted markdown string containing headers, bullets, and bold text)"
-}
-
-Explanations:
-${combinedExplanations}`;
-
-    const notesBtn = document.getElementById('notesBtn');
-    const regenBtn = document.getElementById('regenerateNotesBtn');
-    const originalNotesBtnHTML = notesBtn.innerHTML;
-    const originalRegenBtnHTML = regenBtn.innerHTML;
-    
-    notesBtn.innerHTML = '⏳';
-    notesBtn.disabled = true;
-    regenBtn.innerHTML = '⏳';
-    regenBtn.disabled = true;
-
-    const overlay = document.getElementById('progressOverlay');
-    const modal = document.getElementById('progressModal');
-    const title = document.getElementById('progressTitle');
-    const desc = document.getElementById('progressDesc');
-    const bar = document.getElementById('progressBar');
-    const text = document.getElementById('progressText');
-    const errorText = document.getElementById('progressErrorText');
-    const modelDisplay = document.getElementById('progressModelText');
-
-    title.innerText = "✨ Generating Study Notes...";
-    desc.innerText = "AI is synthesizing all explanations into a formatted markdown guide.";
-    bar.style.width = '100%';
-    bar.classList.add('pulsing');
-    text.innerText = "Compiling Notes";
-    errorText.innerText = "";
-    
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
-    modelDisplay.innerText = `Model: ${displayModel}`;
-
-    overlay.classList.remove('hidden');
-    modal.classList.remove('hidden');
-
-    await delay(50);
-    void modal.offsetWidth; 
-    await delay(300);
-
-    try {
-        const rawOutput = await executeGeminiRequest(prompt, apiKey, NOTES_SCHEMA, 8192);
-        const result = JSON.parse(rawOutput);
-
-        bar.classList.remove('pulsing');
-        overlay.classList.add('hidden');
-        modal.classList.add('hidden');
-
-        if (result && result.notes) {
-            globalNotes = result.notes;
-            syncStateToDrive(); 
-            renderNotesModal(globalNotes);
-        } else {
-            throw new Error("Invalid output format returned by AI.");
-        }
-    } catch (err) {
-        console.error("Notes Generation Error:", err);
-        bar.classList.remove('pulsing');
-        overlay.classList.add('hidden');
-        modal.classList.add('hidden');
-        await customAlert(`Failed to generate notes: ${err.message}`, "Generation Error");
-    } finally {
-        notesBtn.innerHTML = originalNotesBtnHTML;
-        notesBtn.disabled = false;
-        regenBtn.innerHTML = originalRegenBtnHTML;
-        regenBtn.disabled = false;
-    }
-}
-
-function renderNotesModal(notesText) {
-    let html = notesText;
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text);">$1</strong>');
-    html = html.replace(/^###\s+(.*$)/gim, '<h3 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h3>');
-    html = html.replace(/^##\s+(.*$)/gim, '<h2 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h2>');
-    html = html.replace(/^#\s+(.*$)/gim, '<h1 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h1>');
-    html = html.replace(/^[ \t]*[-*]\s+(.*)$/gim, '<li style="margin-bottom: 8px; line-height: 1.6;">$1</li>');
-    html = html.replace(/(<li.*?>.*?<\/li>\s*)+/gim, '<ul style="padding-left: 24px; margin: 12px 0;">$&</ul>');
-    html = html.replace(/\n\n/g, '<br><br>');
-
-    const contentDiv = document.getElementById('notesContent');
-    contentDiv.innerHTML = html;
-    contentDiv.style.whiteSpace = 'normal'; 
-    
-    document.getElementById('notesOverlay').classList.remove('hidden');
-    document.getElementById('notesModal').classList.remove('hidden');
-}
-
-function closeNotesModal() {
-    document.getElementById('notesOverlay').classList.add('hidden');
-    document.getElementById('notesModal').classList.add('hidden');
-}
-
+// --- BATCH CHECK LOGIC SPLIT FOR REVIEW MODAL SUPPORT ---
 async function checkAllWithGemini() {
-    const apiKey = localStorage.getItem('geminiApiKey');
-    if (!apiKey) {
-        await customAlert("No API key found. Please open Settings to add it.", "Missing API Key");
+    let savedProgress = parseInt(localStorage.getItem('checkAllProgress')) || 0;
+    if (savedProgress >= quizData.length) savedProgress = 0;
+
+    // SCENARIO: Check All was previously completed and data exists. Pop up the Review modal instantly.
+    if (savedProgress === 0 && globalLastReview !== null) {
+        showReviewModal(globalLastReview);
         return;
     }
 
-    const total = quizData.length;
-    let savedProgress = parseInt(localStorage.getItem('checkAllProgress')) || 0;
-    if (savedProgress >= total) savedProgress = 0;
-
+    // SCENARIO: A check is in-progress, OR it's the very first time clicking
     let confirmMsg = "Are you sure you want to proceed? This will check ALL questions in batches. It may take some time depending on quiz length.";
     let title = "Check All Questions";
     let btn = "Start Check";
@@ -661,8 +538,28 @@ async function checkAllWithGemini() {
     }
 
     const confirmed = await customConfirm(confirmMsg, title, btn, "btn-indigo");
-    if(!confirmed) return;
+    if (!confirmed) return;
 
+    startBatchCheck(savedProgress);
+}
+
+async function forceRecheckAll() {
+    const confirmed = await customConfirm("Are you sure you want to restart the full batch check? This will override your previous review.", "Check Again", "Start Check", "btn-indigo");
+    if (!confirmed) return;
+    
+    closeReviewModal();
+    localStorage.setItem('checkAllProgress', '0');
+    startBatchCheck(0);
+}
+
+async function startBatchCheck(startIndex) {
+    const apiKey = localStorage.getItem('geminiApiKey');
+    if (!apiKey) {
+        await customAlert("No API key found. Please open Settings to add it.", "Missing API Key");
+        return;
+    }
+
+    const total = quizData.length;
     const overlay = document.getElementById('progressOverlay');
     const modal = document.getElementById('progressModal');
     const bar = document.getElementById('progressBar');
@@ -671,13 +568,13 @@ async function checkAllWithGemini() {
     const modelDisplay = document.getElementById('progressModelText');
     
     document.getElementById('progressTitle').innerText = "Syncing...";
-    document.getElementById('progressDesc').innerText = "Processing sequentially in batches. This may take approximately 15–20 minutes. Please keep this page open until the process is complete.;
+    document.getElementById('progressDesc').innerText = "Processing sequentially in batches. This may take approximately 15–20 minutes. Please keep this page open until the process is complete.";
     bar.classList.remove('pulsing');
 
     overlay.classList.remove('hidden');
     modal.classList.remove('hidden');
 
-    let completed = savedProgress;
+    let completed = startIndex;
     bar.style.width = `${Math.round((completed / total) * 100)}%`;
     text.innerText = `${completed} / ${total}`;
     errorText.innerText = "";
@@ -690,10 +587,16 @@ async function checkAllWithGemini() {
     await delay(300); 
 
     let dataUpdated = false;
-    let changedQuestions = [];
     const batchSize = 20;
 
-    for (let i = savedProgress; i < total; i += batchSize) {
+    // Ensure the global tracker is prepped. If starting fresh, clear it.
+    if (startIndex === 0) {
+        globalLastReview = [];
+    } else if (!globalLastReview) {
+        globalLastReview = [];
+    }
+
+    for (let i = startIndex; i < total; i += batchSize) {
         const batch = quizData.slice(i, i + batchSize);
         const batchPrompt = batch.map((q, idx) => {
             const optionsString = (q.options || []).length > 0 ? q.options.map((opt, oIdx) => `[Index ${oIdx}]: ${opt}`).join('\n') : "No options provided.";
@@ -737,7 +640,8 @@ Instructions:
                     const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
                     if (!isSame && (q.options || []).length > 0) {
-                        changedQuestions.push({
+                        // Push directly to the global review cache
+                        globalLastReview.push({
                             index: i + idx, question: q.question, options: q.options || [],
                             oldAnswers: [...oldAnswers], newAnswers: [...newAnswers]
                         });
@@ -767,13 +671,14 @@ Instructions:
         }
 
         completed += batch.length;
-        
         localStorage.setItem('checkAllProgress', completed);
+        
+        // Force the partial review state to lock into localStorage mid-loop
+        saveState(); 
+
         if (dataUpdated) {
             await syncStateToDrive(); 
             dataUpdated = false; 
-        } else {
-            saveState(); 
         }
 
         bar.style.width = `${Math.round((completed / total) * 100)}%`;
@@ -790,6 +695,7 @@ Instructions:
         }
     }
 
+    // Clean up local progress since the job successfully finished
     localStorage.removeItem('checkAllProgress');
     overlay.classList.add('hidden');
     modal.classList.add('hidden');
@@ -797,31 +703,40 @@ Instructions:
     renderQ();
     renderSidebar();
     
-    if (changedQuestions.length > 0) showReviewModal(changedQuestions);
-    else await customAlert("Answers and explanations have been successfully synced!", "Sync Complete");
+    // Explicitly sync the final review payload to the Cloud JSON Drive file
+    saveState();
+    await syncStateToDrive();
+    
+    showReviewModal(globalLastReview);
 }
 
 function showReviewModal(changes) {
     const content = document.getElementById('reviewContent');
     content.innerHTML = '';
-    changes.forEach(change => {
-        const oldText = change.oldAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
-        const newText = change.newAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
-        const div = document.createElement('div');
-        div.style.padding = '20px'; div.style.border = '1px solid var(--border)';
-        div.style.borderRadius = '8px'; div.style.background = 'var(--bg)';
-        div.innerHTML = `
-            <p style="font-weight: 600; margin-top: 0; font-size: 1.1em; color: var(--text);">Question ${change.index + 1}: ${change.question}</p>
-            <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px;">
-                <div style="flex: 1; min-width: 200px; padding: 15px; background: rgba(239, 68, 68, 0.15); border-radius: 6px; border: 1px solid var(--red); color: var(--text);">
-                    <strong style="display: block; margin-bottom: 8px; color: var(--red);">Old Answer: ${formatIndicesToLetters(change.oldAnswers)}</strong>${oldText}
-                </div>
-                <div style="flex: 1; min-width: 200px; padding: 15px; background: rgba(16, 185, 129, 0.15); border-radius: 6px; border: 1px solid var(--green); color: var(--text);">
-                    <strong style="display: block; margin-bottom: 8px; color: var(--green);">New Answer: ${formatIndicesToLetters(change.newAnswers)}</strong>${newText}
-                </div>
-            </div>`;
-        content.appendChild(div);
-    });
+    
+    if (!changes || changes.length === 0) {
+        content.innerHTML = '<em style="color: var(--secondary);">No answers were modified during the last AI batch check. All existing answers matched the AI\'s evaluation.</em>';
+    } else {
+        changes.forEach(change => {
+            const oldText = change.oldAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
+            const newText = change.newAnswers.map(idx => change.options[idx]).join(' <br> ') || 'None';
+            const div = document.createElement('div');
+            div.style.padding = '20px'; div.style.border = '1px solid var(--border)';
+            div.style.borderRadius = '8px'; div.style.background = 'var(--bg)';
+            div.innerHTML = `
+                <p style="font-weight: 600; margin-top: 0; font-size: 1.1em; color: var(--text);">Question ${change.index + 1}: ${change.question}</p>
+                <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-top: 15px;">
+                    <div style="flex: 1; min-width: 200px; padding: 15px; background: rgba(239, 68, 68, 0.15); border-radius: 6px; border: 1px solid var(--red); color: var(--text);">
+                        <strong style="display: block; margin-bottom: 8px; color: var(--red);">Old Answer: ${formatIndicesToLetters(change.oldAnswers)}</strong>${oldText}
+                    </div>
+                    <div style="flex: 1; min-width: 200px; padding: 15px; background: rgba(16, 185, 129, 0.15); border-radius: 6px; border: 1px solid var(--green); color: var(--text);">
+                        <strong style="display: block; margin-bottom: 8px; color: var(--green);">New Answer: ${formatIndicesToLetters(change.newAnswers)}</strong>${newText}
+                    </div>
+                </div>`;
+            content.appendChild(div);
+        });
+    }
+    
     document.getElementById('reviewOverlay').classList.remove('hidden');
     document.getElementById('reviewModal').classList.remove('hidden');
 }
@@ -980,6 +895,129 @@ Instructions:
     }
 }
 
+async function handleNotesGeneration(force = false) {
+    if (globalNotes && !force) {
+        renderNotesModal(globalNotes);
+        return;
+    }
+    const apiKey = localStorage.getItem('geminiApiKey');
+    if (!apiKey) {
+        await customAlert("No API key found. Please open Settings to add it.", "Missing API Key");
+        return;
+    }
+
+    const explanations = quizData.map(q => q.explanation).filter(exp => exp && exp.trim() !== "");
+    if (explanations.length === 0) {
+        await customAlert("No explanations found. Please generate explanations using AI first.", "Cannot Generate Notes");
+        return;
+    }
+
+    const combinedExplanations = explanations.join("\n\n");
+    const prompt = `You are an expert exam prep assistant. Combine the following quiz explanations and synthesize them into a highly organized, beautifully formatted study guide. 
+
+FORMATTING & CONTENT RULES:
+1. Use clear Markdown Headings (### Topic Name) to group similar concepts logically.
+2. Use bullet points (-) for key facts under each heading.
+3. Bold (**text**) the most critical terms, tool names, or formulas.
+4. CRITICAL FILTER: Extract ONLY the facts related to the correct answers and core concepts. Completely ignore any text discussing why alternative options or distractors are incorrect. The study guide must only contain true facts and correct workflows.
+5. Keep explanations incredibly concise and punchy. No fluff.
+
+Return strictly a valid JSON object matching this schema:
+{
+"notes": "string (your formatted markdown string containing headers, bullets, and bold text)"
+}
+
+Explanations:
+${combinedExplanations}`;
+
+    const notesBtn = document.getElementById('notesBtn');
+    const regenBtn = document.getElementById('regenerateNotesBtn');
+    const originalNotesBtnHTML = notesBtn.innerHTML;
+    const originalRegenBtnHTML = regenBtn.innerHTML;
+    
+    notesBtn.innerHTML = '⏳';
+    notesBtn.disabled = true;
+    regenBtn.innerHTML = '⏳';
+    regenBtn.disabled = true;
+
+    const overlay = document.getElementById('progressOverlay');
+    const modal = document.getElementById('progressModal');
+    const title = document.getElementById('progressTitle');
+    const desc = document.getElementById('progressDesc');
+    const bar = document.getElementById('progressBar');
+    const text = document.getElementById('progressText');
+    const errorText = document.getElementById('progressErrorText');
+    const modelDisplay = document.getElementById('progressModelText');
+
+    title.innerText = "✨ Generating Study Notes...";
+    desc.innerText = "AI is synthesizing all explanations into a formatted markdown guide.";
+    bar.style.width = '100%';
+    bar.classList.add('pulsing');
+    text.innerText = "Compiling Notes";
+    errorText.innerText = "";
+    
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
+    modelDisplay.innerText = `Model: ${displayModel}`;
+
+    overlay.classList.remove('hidden');
+    modal.classList.remove('hidden');
+
+    await delay(50);
+    void modal.offsetWidth; 
+    await delay(300);
+
+    try {
+        const rawOutput = await executeGeminiRequest(prompt, apiKey, NOTES_SCHEMA, 8192);
+        const result = JSON.parse(rawOutput);
+
+        bar.classList.remove('pulsing');
+        overlay.classList.add('hidden');
+        modal.classList.add('hidden');
+
+        if (result && result.notes) {
+            globalNotes = result.notes;
+            syncStateToDrive(); 
+            renderNotesModal(globalNotes);
+        } else {
+            throw new Error("Invalid output format returned by AI.");
+        }
+    } catch (err) {
+        console.error("Notes Generation Error:", err);
+        bar.classList.remove('pulsing');
+        overlay.classList.add('hidden');
+        modal.classList.add('hidden');
+        await customAlert(`Failed to generate notes: ${err.message}`, "Generation Error");
+    } finally {
+        notesBtn.innerHTML = originalNotesBtnHTML;
+        notesBtn.disabled = false;
+        regenBtn.innerHTML = originalRegenBtnHTML;
+        regenBtn.disabled = false;
+    }
+}
+
+function renderNotesModal(notesText) {
+    let html = notesText;
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text);">$1</strong>');
+    html = html.replace(/^###\s+(.*$)/gim, '<h3 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h3>');
+    html = html.replace(/^##\s+(.*$)/gim, '<h2 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h2>');
+    html = html.replace(/^#\s+(.*$)/gim, '<h1 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h1>');
+    html = html.replace(/^[ \t]*[-*]\s+(.*)$/gim, '<li style="margin-bottom: 8px; line-height: 1.6;">$1</li>');
+    html = html.replace(/(<li.*?>.*?<\/li>\s*)+/gim, '<ul style="padding-left: 24px; margin: 12px 0;">$&</ul>');
+    html = html.replace(/\n\n/g, '<br><br>');
+
+    const contentDiv = document.getElementById('notesContent');
+    contentDiv.innerHTML = html;
+    contentDiv.style.whiteSpace = 'normal'; 
+    
+    document.getElementById('notesOverlay').classList.remove('hidden');
+    document.getElementById('notesModal').classList.remove('hidden');
+}
+
+function closeNotesModal() {
+    document.getElementById('notesOverlay').classList.add('hidden');
+    document.getElementById('notesModal').classList.add('hidden');
+}
+
 async function showReuploadScreen() {
     const confirmed = await customConfirm("Warning: Pasting new JSON will overwrite your current cloud file and reset all progress. Do you wish to continue?", "Overwrite Warning", "Continue", "btn-red");
     if(!confirmed) return;
@@ -1002,9 +1040,10 @@ async function handleNewJsonSubmit() {
             ...q, options: q.options || [], correctAnswers: q.correctAnswers || [],
             userAnswer: null, status: null, marked: false, explanation: null
         }));
-        curIdx = 0; globalNotes = null; 
+        curIdx = 0; globalNotes = null; globalLastReview = null;
         
         localStorage.removeItem('checkAllProgress'); 
+        localStorage.removeItem('quizLastReview');
         document.getElementById('jsonInputScreen').classList.add('hidden');
         syncStateToDrive(); startApp();
     } catch(e) { 

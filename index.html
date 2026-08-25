@@ -28,8 +28,18 @@
 <div id="reviewOverlay" class="overlay hidden"></div>
 <div id="reviewModal" class="card review-modal hidden">
     <button id="closeReviewBtn" class="close-review-btn" title="Close Review">&times;</button>
-    <h2 style="margin-top: 0; padding-right: 30px; color: var(--text);">AI Answer Updates Review</h2>
-    <p style="color: var(--secondary); margin-top: 0;">The following questions had their correct answers modified by the AI batch check:</p>
+    
+    <!-- NEW: Flex header with Check Again Button -->
+    <div style="display: flex; justify-content: space-between; align-items: center; padding-right: 40px; margin-bottom: 5px;">
+        <h2 style="margin: 0; color: var(--text);">AI Answer Updates</h2>
+        <button id="recheckAllBtn" class="action-btn" style="background: var(--indigo); padding: 8px 16px; font-size: 14px; min-width: auto; flex: none;">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-10.45l5.25 4.88"></path>
+            </svg> Check Again
+        </button>
+    </div>
+    
+    <p style="color: var(--secondary); margin-top: 0;">Review the answers modified by the AI below:</p>
     <div id="reviewContent" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;"></div>
 </div>
 
@@ -39,7 +49,7 @@
     <div class="notes-modal-header" style="display: flex; justify-content: space-between; align-items: center; padding-right: 40px;">
         <h2 style="margin: 0; color: var(--text);">Study Notes</h2>
         <button id="regenerateNotesBtn" class="action-btn" style="background: var(--purple); padding: 8px 16px; font-size: 14px; min-width: auto; flex: none;">
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg> Regenerate
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 0 20.49 15"></path></svg> Regenerate
         </button>
     </div>
     <p style="color: var(--secondary); margin-top: 5px;">Concise, auto-generated notes based on quiz explanations.</p>
