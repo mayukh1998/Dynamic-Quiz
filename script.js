@@ -450,12 +450,16 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         let errorMessage = await parseError(response);
         console.warn(`Primary model (${model}) failed:`, response.status, errorMessage);
         
-        // Phase 1: Retry for BOTH custom and default models if Rate Limited, Server Error, or Network Drop (Status 0)
+        // Phase 1: Retry for BOTH custom and default models if Rate Limited, Server Error, or Network Drop
         if (response.status === 429 || response.status >= 500 || response.status === 0) {
+            
+            // Dynamically set timer to 45 seconds specifically for "high demand" errors
+            let retryWaitTime = errorMessage.toLowerCase().includes("high demand") ? 45 : 20;
+
             if (errorDisplay) {
-                for (let sec = 20; sec > 0; sec--) {
+                for (let sec = retryWaitTime; sec > 0; sec--) {
                     errorDisplay.style.color = "var(--yellow)";
-                    errorDisplay.innerText = `High demand/Network issue. Retrying model in ${sec}s...`;
+                    errorDisplay.innerText = `High demand/Network issue. Retrying same model in ${sec}s...`;
                     await delay(1000);
                 }
                 errorDisplay.innerText = "Retrying model...";
