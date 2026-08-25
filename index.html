@@ -16,11 +16,15 @@
     <h3 style="margin-top: 0;">Syncing...</h3>
     <p style="font-size: 0.9em; color: var(--secondary);">Processing sequentially in batches. Please do not close the page.</p>
     <div style="background: var(--border); border-radius: 8px; height: 20px; overflow: hidden; margin: 15px 0;">
-        <!-- CHANGED: --success to --green -->
         <div id="progressBar" style="background: var(--green); width: 0%; height: 100%; transition: width 0.3s;"></div>
     </div>
-    <p id="progressText" style="font-weight: bold; color: var(--text);">0 / 0</p>
-    <!-- CHANGED: --danger to --red -->
+    
+    <!-- Updated margins to group texts nicely -->
+    <p id="progressText" style="font-weight: bold; color: var(--text); margin: 0 0 5px 0;">0 / 0</p>
+    
+    <!-- NEW: Model Display Text -->
+    <p id="progressModelText" style="font-size: 0.85em; color: var(--indigo); margin: 0; font-weight: 600;"></p>
+    
     <p id="progressErrorText" style="color: var(--red); font-weight: bold; font-size: 0.9em; margin-top: 10px; min-height: 20px;"></p>
 </div>
 
