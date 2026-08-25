@@ -404,3 +404,7 @@ input:focus, textarea:focus {
     .bottom-actions { flex-direction: column; gap: 10px; width: 100%; }
     .bottom-actions button { width: 100%; flex: none; }
 }
+
+#progressErrorText:empty { 
+    display: none !important; 
+}
