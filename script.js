@@ -531,7 +531,22 @@ async function handleNotesGeneration(force = false) {
     }
 
     const combinedExplanations = explanations.join("\n\n");
-    const prompt = `You are an expert exam prep assistant. Combine the following quiz explanations and synthesize them into a highly organized, beautifully formatted study guide. \n\nFORMATTING RULES:\n1. Use clear Markdown Headings (### Topic Name) to group similar concepts logically.\n2. Use bullet points (-) for key facts under each heading.\n3. Bold (**text**) the most critical terms, tool names, or formulas.\n4. Keep explanations incredibly concise and punchy. No fluff.\n\nReturn strictly a valid JSON object matching this schema:\n{\n"notes": "string (your formatted markdown string containing headers, bullets, and bold text)"\n}\n\nExplanations:\n${combinedExplanations}`;
+    const prompt = `You are an expert exam prep assistant. Combine the following quiz explanations and synthesize them into a highly organized, beautifully formatted study guide. 
+
+FORMATTING & CONTENT RULES:
+1. Use clear Markdown Headings (### Topic Name) to group similar concepts logically.
+2. Use bullet points (-) for key facts under each heading.
+3. Bold (**text**) the most critical terms, tool names, or formulas.
+4. CRITICAL FILTER: Extract ONLY the facts related to the correct answers and core concepts. Completely ignore any text discussing why alternative options or distractors are incorrect. The study guide must only contain true facts and correct workflows.
+5. Keep explanations incredibly concise and punchy. No fluff.
+
+Return strictly a valid JSON object matching this schema:
+{
+"notes": "string (your formatted markdown string containing headers, bullets, and bold text)"
+}
+
+Explanations:
+${combinedExplanations}`;
 
     const notesBtn = document.getElementById('notesBtn');
     const regenBtn = document.getElementById('regenerateNotesBtn');
@@ -688,9 +703,9 @@ Questions:
 ${batchPrompt}
 
 Instructions:
-1. Identify the exact correct option index or indices for each question. If options are missing, return an empty array.
-2. Provide a concise explanation (under 600 characters) stating why the chosen option is correct and why the alternatives are incorrect.
-3. Return strictly a JSON array of objects in the exact question order:
+1. Determine the exact correct option index or indices based strictly on official documentation and best practices. If options are missing, return an empty array.
+2. Provide a concise, clear explanation (under 600 characters) stating why the chosen option is correct and briefly why the alternatives are incorrect.
+3. Return strictly a JSON array of objects matching this schema in the exact question order:
 [
   {
     "correctAnswers": [number],
