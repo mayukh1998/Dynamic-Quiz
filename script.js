@@ -325,6 +325,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     let model = customModel || defaultModel;
     
     const modelDisplay = document.getElementById('progressModelText');
+    const errorDisplay = document.getElementById('progressErrorText');
     
     // ALWAYS force the UI to show the exact model we are about to ping
     if (modelDisplay) {
@@ -353,20 +354,40 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         const errorText = await response.clone().text();
         console.warn(`Primary model (${model}) failed:`, response.status, errorText);
         
+        // Parse the exact error message from Google
+        let errorMessage = `HTTP Status ${response.status}`;
+        try {
+            const errData = JSON.parse(errorText);
+            errorMessage = errData.error?.message || errorMessage;
+        } catch(e) {}
+        
         // ONLY fallback to 3.5-flash-lite if NO custom model is set AND it's a rate limit / server error
         if (!customModel && (response.status === 429 || response.status >= 500)) {
-            // Instantly update the UI to show the fallback model taking over in real-time
+            
+            // Show the error and run a 10-second countdown timer before falling back
+            if (errorDisplay) {
+                for (let sec = 10; sec > 0; sec--) {
+                    errorDisplay.style.color = "var(--yellow)";
+                    errorDisplay.innerText = `Model failed (${errorMessage}). Falling back in ${sec}s...`;
+                    await delay(1000);
+                }
+                errorDisplay.innerText = "Switching to fallback model...";
+            }
+
+            // Update the UI to show the fallback model taking over
             if (modelDisplay) {
                 modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
             }
+            
             response = await callModel(fallbackModel);
+            
+            // Clear the switching text once the fallback request completes
+            if (errorDisplay && errorDisplay.innerText.includes("Switching")) {
+                errorDisplay.innerText = "";
+            }
+            
         } else {
             // If custom model is set, OR error is 400/403/404, throw the error directly
-            let errorMessage = `HTTP Status ${response.status}`;
-            try {
-                const errData = JSON.parse(errorText);
-                errorMessage = errData.error?.message || errorMessage;
-            } catch(e) {}
             throw new Error(errorMessage);
         }
     }
