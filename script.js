@@ -448,16 +448,24 @@ async function checkAllWithGemini() {
                 results.forEach((result, idx) => {
                     const q = quizData[i + idx];
                     const oldAnswers = q.correctAnswers || [];
-                    const newAnswers = result.correctAnswers || [];
+                    
+                    // NEW: Fetch AI answers and filter out any impossible hallucinatory indices
+                    let rawNewAnswers = result.correctAnswers || [];
+                    const maxIdx = (q.options || []).length - 1;
+                    const newAnswers = rawNewAnswers.filter(val => val >= 0 && val <= maxIdx);
+
                     const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
+                    // Only update if answers are different AND we actually have options to choose from
                     if (!isSame && (q.options || []).length > 0) {
                         changedQuestions.push({
                             index: i + idx, question: q.question, options: q.options || [],
                             oldAnswers: [...oldAnswers], newAnswers: [...newAnswers]
                         });
 
-                        q.correctAnswers = newAnswers;
+                        q.correctAnswers = newAnswers; // Updates the DB
+                        
+                        // Recalculates user score if they already played this question
                         if (q.userAnswer !== null) {
                             const isUserCorrect = q.userAnswer.length === q.correctAnswers.length && q.userAnswer.every(val => q.correctAnswers.includes(val));
                             q.status = isUserCorrect ? 'correct' : 'incorrect';
