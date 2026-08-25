@@ -284,6 +284,11 @@ function formatIndicesToLetters(indicesArray) {
 
 async function executeGeminiRequest(prompt, apiKey) {
     let model = 'gemini-3.6-flash';
+    
+    // Dynamically update the UI if the progress modal is open
+    const modelDisplay = document.getElementById('progressModelText');
+    if (modelDisplay) modelDisplay.innerText = `Model: ${model}`;
+
     let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -295,6 +300,10 @@ async function executeGeminiRequest(prompt, apiKey) {
 
     if (response.status === 459 || !response.ok) {
         model = 'gemini-3-flash-preview';
+        
+        // Instantly update the UI to show that a fallback model is being used
+        if (modelDisplay) modelDisplay.innerText = `Model: ${model} (Fallback)`;
+        
         response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -411,7 +420,8 @@ async function checkAllWithGemini() {
     bar.style.width = `${Math.round((completed / total) * 100)}%`;
     text.innerText = `${completed} / ${total}`;
     errorText.innerText = "";
-
+    
+    document.getElementById('progressModelText').innerText = "Model: Connecting...";
     await delay(50);
     void modal.offsetWidth; 
     await delay(300); 
