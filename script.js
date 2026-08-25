@@ -328,7 +328,8 @@ function formatIndicesToLetters(indicesArray) {
 }
 
 async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
-    let defaultModel = 'gemini-3.7-flash';
+    // Defaulting to 3.7-flash as requested
+    let defaultModel = 'gemini-3.7-flash'; 
     let customModel = localStorage.getItem('geminiModelName');
     let model = customModel || defaultModel;
     
@@ -356,13 +357,28 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
 
     let response = await callModel(model);
 
-    // Only apply the 1.5 fallback logic if the user has NOT forced a custom model
-    if ((response.status === 429 || !response.ok) && !customModel) {
-        let fallbackModel = 'gemini-3.5-flash-lite';
+    // If the request fails, read the exact error from Google's API
+    if (!response.ok) {
+        const errorText = await response.clone().text();
+        console.warn(`Primary model (${model}) failed:`, response.status, errorText);
         
-        if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
-        
-        response = await callModel(fallbackModel);
+        // ONLY fallback if it's a Rate Limit (429) or Server Error (5xx). 
+        // If it's 400 (Bad Request) or 403/404, falling back hides the real issue.
+        if ((response.status === 429 || response.status >= 500) && !customModel) {
+            let fallbackModel = 'gemini-3.5-flash';
+            
+            if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
+            response = await callModel(fallbackModel);
+        } else {
+            // It's a hard error (e.g., 403 Forbidden or 404 Not Found).
+            // Parse and throw it immediately so it displays in your red UI banner.
+            let errorMessage = `HTTP Status ${response.status}`;
+            try {
+                const errData = JSON.parse(errorText);
+                errorMessage = errData.error?.message || errorMessage;
+            } catch(e) {}
+            throw new Error(errorMessage);
+        }
     }
 
     if (!response.ok) {
