@@ -452,16 +452,50 @@ async function handleNotesGeneration(force = false) {
 
     const notesBtn = document.getElementById('notesBtn');
     const regenBtn = document.getElementById('regenerateNotesBtn');
-    const originalText = notesBtn.innerHTML;
+    const originalNotesBtnHTML = notesBtn.innerHTML;
+    const originalRegenBtnHTML = regenBtn.innerHTML;
     
-    notesBtn.innerHTML = '⏳ Generating...';
+    // Set loading state on buttons
+    notesBtn.innerHTML = '⏳';
     notesBtn.disabled = true;
-    regenBtn.innerHTML = '⏳ Generating...';
+    regenBtn.innerHTML = '⏳';
     regenBtn.disabled = true;
+
+    // Utilize the unified Progress Modal
+    const overlay = document.getElementById('progressOverlay');
+    const modal = document.getElementById('progressModal');
+    const title = document.getElementById('progressTitle');
+    const desc = document.getElementById('progressDesc');
+    const bar = document.getElementById('progressBar');
+    const text = document.getElementById('progressText');
+    const errorText = document.getElementById('progressErrorText');
+    const modelDisplay = document.getElementById('progressModelText');
+
+    title.innerText = "✨ Generating Study Notes...";
+    desc.innerText = "AI is synthesizing all explanations into a formatted markdown guide.";
+    bar.style.width = '100%';
+    bar.classList.add('pulsing');
+    text.innerText = "Compiling Notes";
+    errorText.innerText = "";
+    
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
+    modelDisplay.innerText = `Model: ${displayModel}`;
+
+    overlay.classList.remove('hidden');
+    modal.classList.remove('hidden');
+
+    await delay(50);
+    void modal.offsetWidth; 
+    await delay(300);
 
     try {
         const rawOutput = await executeGeminiRequest(prompt, apiKey, NOTES_SCHEMA, 8192);
         const result = JSON.parse(rawOutput);
+
+        // Hide the modal immediately upon success
+        bar.classList.remove('pulsing');
+        overlay.classList.add('hidden');
+        modal.classList.add('hidden');
 
         if (result && result.notes) {
             globalNotes = result.notes;
@@ -472,18 +506,44 @@ async function handleNotesGeneration(force = false) {
         }
     } catch (err) {
         console.error("Notes Generation Error:", err);
+        bar.classList.remove('pulsing');
+        overlay.classList.add('hidden');
+        modal.classList.add('hidden');
         alert(`Failed to generate notes: ${err.message}`);
     } finally {
-        notesBtn.innerHTML = originalText;
+        notesBtn.innerHTML = originalNotesBtnHTML;
         notesBtn.disabled = false;
-        regenBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2L12 8.5 18.5 11 12 13.5 9.5 20 7 13.5 0.5 11 7 8.5z"></path><path d="M19 2l1.5 3.5 3.5 1.5-3.5 1.5L19 12l-1.5-3.5L14 7l3.5-1.5z"></path></svg> Regenerate';
+        regenBtn.innerHTML = originalRegenBtnHTML;
         regenBtn.disabled = false;
     }
 }
 
 function renderNotesModal(notesText) {
-    let htmlContent = notesText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    document.getElementById('notesContent').innerHTML = htmlContent;
+    let html = notesText;
+
+    // 1. Format Bold Text
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text);">$1</strong>');
+    
+    // 2. Format Headers (### Topic Name)
+    html = html.replace(/^###\s+(.*$)/gim, '<h3 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h3>');
+    html = html.replace(/^##\s+(.*$)/gim, '<h2 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h2>');
+    html = html.replace(/^#\s+(.*$)/gim, '<h1 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h1>');
+    
+    // 3. Format Bullet Points (- item or * item)
+    html = html.replace(/^[ \t]*[-*]\s+(.*)$/gim, '<li style="margin-bottom: 8px; line-height: 1.6;">$1</li>');
+    
+    // Wrap consecutive <li> tags into a parent <ul> tag
+    html = html.replace(/(<li.*?>.*?<\/li>\s*)+/gim, '<ul style="padding-left: 24px; margin: 12px 0;">$&</ul>');
+
+    // 4. Convert double line-breaks into paragraph spaces
+    html = html.replace(/\n\n/g, '<br><br>');
+
+    const contentDiv = document.getElementById('notesContent');
+    contentDiv.innerHTML = html;
+    
+    // CRITICAL FIX: Disable pre-wrap so raw newlines from the AI don't break sentences in half
+    contentDiv.style.whiteSpace = 'normal'; 
+    
     document.getElementById('notesOverlay').classList.remove('hidden');
     document.getElementById('notesModal').classList.remove('hidden');
 }
