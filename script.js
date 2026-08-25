@@ -46,8 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const savedUrl = localStorage.getItem('gasWebUrl');
     const savedApiKey = localStorage.getItem('geminiApiKey');
+    const savedModelName = localStorage.getItem('geminiModelName');
+    
     if (savedUrl) document.getElementById('scriptUrlInput').value = savedUrl;
     if (savedApiKey) document.getElementById('geminiApiKeyInput').value = savedApiKey;
+    if (savedModelName && document.getElementById('geminiModelInput')) {
+        document.getElementById('geminiModelInput').value = savedModelName;
+    }
 
     document.getElementById('loadBtn').addEventListener('click', () => initiateLoad(true));
     document.getElementById('clearCacheBtn').addEventListener('click', unlinkDrive);
@@ -110,6 +115,7 @@ function unlinkDrive() {
     if(!confirm("Are you sure? This will disconnect the app from Google Drive & clear your API key.")) return;
     localStorage.removeItem('gasWebUrl');
     localStorage.removeItem('geminiApiKey');
+    localStorage.removeItem('geminiModelName');
     localStorage.removeItem('quizDataFull');
     localStorage.removeItem('quizProgress');
     localStorage.removeItem('quizNotes'); 
@@ -125,9 +131,23 @@ function changeApiKey() {
         const trimmed = newKey.trim();
         if (trimmed) {
             localStorage.setItem('geminiApiKey', trimmed);
-            alert("API Key updated successfully!");
+            
+            // New secondary prompt for custom model input
+            const currentModel = localStorage.getItem('geminiModelName') || '';
+            const newModel = prompt("Enter preferred Gemini Model Name (Optional):\n\n(Leave blank to use default 'gemini-2.5-flash')", currentModel);
+            
+            if (newModel !== null) {
+                const trimmedModel = newModel.trim();
+                if (trimmedModel) {
+                    localStorage.setItem('geminiModelName', trimmedModel);
+                } else {
+                    localStorage.removeItem('geminiModelName');
+                }
+            }
+            alert("API settings updated successfully!");
         } else {
             localStorage.removeItem('geminiApiKey');
+            localStorage.removeItem('geminiModelName');
             alert("API Key removed. AI features will be disabled until you add a new one.");
         }
     }
@@ -147,6 +167,7 @@ function updateSyncStatus(status) {
 async function initiateLoad(isManual) {
     const urlInput = document.getElementById('scriptUrlInput').value.trim();
     const geminiInput = document.getElementById('geminiApiKeyInput').value.trim();
+    const modelInput = document.getElementById('geminiModelInput') ? document.getElementById('geminiModelInput').value.trim() : "";
 
     if (!urlInput) {
         alert("Please paste the Google Apps Script URL.");
@@ -155,6 +176,11 @@ async function initiateLoad(isManual) {
     
     appsScriptUrl = urlInput;
     if (geminiInput) localStorage.setItem('geminiApiKey', geminiInput);
+    if (modelInput) {
+        localStorage.setItem('geminiModelName', modelInput);
+    } else {
+        localStorage.removeItem('geminiModelName');
+    }
 
     const loadProgressContainer = document.getElementById('loadProgressContainer');
     const loadProgressText = document.getElementById('loadProgressText');
@@ -302,10 +328,15 @@ function formatIndicesToLetters(indicesArray) {
 }
 
 async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
-    let model = 'gemini-3.7-flash';
+    let defaultModel = 'gemini-3.7-flash';
+    let customModel = localStorage.getItem('geminiModelName');
+    let model = customModel || defaultModel;
     
+    // Updates UI but skips updating if a fallback was triggered to prevent visual flickering
     const modelDisplay = document.getElementById('progressModelText');
-    if (modelDisplay) modelDisplay.innerText = `Model: ${model}`;
+    if (modelDisplay && !modelDisplay.innerText.includes('Fallback')) {
+        modelDisplay.innerText = `Model: ${model}`;
+    }
 
     const buildBody = () => ({
         contents: [{ parts: [{ text: prompt }] }],
@@ -325,12 +356,13 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
 
     let response = await callModel(model);
 
-    if (response.status === 429 || !response.ok) {
-        model = 'gemini-3.5-flash-lite';
+    // Only apply the 1.5 fallback logic if the user has NOT forced a custom model
+    if ((response.status === 429 || !response.ok) && !customModel) {
+        let fallbackModel = 'gemini-3.5-flash-lite';
         
-        if (modelDisplay) modelDisplay.innerText = `Model: ${model} (Fallback)`;
+        if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
         
-        response = await callModel(model);
+        response = await callModel(fallbackModel);
     }
 
     if (!response.ok) {
@@ -635,6 +667,7 @@ async function fetchGeminiAnswer() {
     const geminiBtn = document.getElementById('geminiHelpBtn');
     const originalGeminiBtnHTML = geminiBtn.innerHTML;
     
+    // Set loading state on button
     geminiBtn.innerHTML = '⏳';
     geminiBtn.style.opacity = '0.8';
     geminiBtn.disabled = true;
