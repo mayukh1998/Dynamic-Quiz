@@ -286,7 +286,10 @@ body {
 }
 .bottom-actions button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.1); box-shadow: var(--shadow-hover); }
 .bottom-actions button:active:not(:disabled) { transform: scale(0.97); box-shadow: var(--shadow); }
-.btn-secondary { background: var(--border); color: var(--text); }
+.btn-secondary { 
+    background: var(--border) !important; 
+    color: var(--text) !important; 
+}
 
 .warning-banner { 
     width: 100%;
