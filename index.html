@@ -45,7 +45,24 @@
     <p style="color: var(--secondary); margin-top: 5px;">Concise, auto-generated notes based on quiz explanations.</p>
     <div id="notesContent" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px; font-size: 1.05em; line-height: 1.7; white-space: pre-wrap;"></div>
 </div>
-
+<div id="apiSettingsOverlay" class="overlay hidden"></div>
+<div id="apiSettingsModal" class="card review-modal hidden" style="max-width: 450px; top: 15%; padding: 30px;">
+    <h2 style="margin-top: 0; color: var(--text);">API Settings</h2>
+    <p style="color: var(--secondary); margin-top: 0; margin-bottom: 20px;">Update your Gemini API credentials and preferred model.</p>
+    
+    <label style="font-weight:bold; color: var(--text); display: block; text-align: left;">Gemini API Key:</label>
+    <input type="password" id="modalApiKeyInput" placeholder="Leave blank to remove" style="margin: 8px 0 15px 0;">
+    
+    <label style="font-weight:bold; color: var(--text); display: block; text-align: left;">Gemini Model Name (Optional):</label>
+    <input type="text" id="modalApiModelInput" placeholder="e.g., gemini-3.7-flash" style="margin: 8px 0 0 0;">
+    
+    <p id="apiSettingsError" style="color: var(--red); font-size: 0.9em; font-weight: 600; min-height: 20px; margin: 10px 0 0 0; text-align: left;"></p>
+    
+    <div class="bottom-actions" style="margin-top: 20px;">
+        <button id="saveApiSettingsBtn" class="btn-green">Save Settings</button>
+        <button id="cancelApiSettingsBtn" class="btn-secondary">Cancel</button>
+    </div>
+</div>
 <!-- Configuration Screens -->
 <div id="configScreen" class="config-container card">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 35px;">

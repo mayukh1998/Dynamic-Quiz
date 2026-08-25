@@ -56,7 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
     document.getElementById('copyQBtn').addEventListener('click', copyQuestion);
     
-    document.getElementById('changeApiKeyBtn').addEventListener('click', changeApiKey);
+    document.getElementById('changeApiKeyBtn').addEventListener('click', openApiSettingsModal);
+    document.getElementById('saveApiSettingsBtn').addEventListener('click', saveApiSettings);
+    document.getElementById('cancelApiSettingsBtn').addEventListener('click', closeApiSettingsModal);
     document.getElementById('checkAllBtn').addEventListener('click', checkAllWithGemini);
     
     document.getElementById('notesBtn').addEventListener('click', () => handleNotesGeneration(false));
@@ -119,34 +121,55 @@ function unlinkDrive() {
     location.reload();
 }
 
-function changeApiKey() {
+function openApiSettingsModal() {
     const currentKey = localStorage.getItem('geminiApiKey') || '';
-    const newKey = prompt("Enter your Gemini API Key:\n\n(Leave blank to remove the key)", currentKey);
+    const currentModel = localStorage.getItem('geminiModelName') || '';
     
-    if (newKey !== null) {
-        const trimmed = newKey.trim();
-        if (trimmed) {
-            localStorage.setItem('geminiApiKey', trimmed);
-            
-            // New secondary prompt for custom model input
-            const currentModel = localStorage.getItem('geminiModelName') || '';
-            const newModel = prompt("Enter preferred Gemini Model Name (Optional):\n\n(Leave blank to use default 'gemini-3.7-flash')", currentModel);
-            
-            if (newModel !== null) {
-                const trimmedModel = newModel.trim();
-                if (trimmedModel) {
-                    localStorage.setItem('geminiModelName', trimmedModel);
-                } else {
-                    localStorage.removeItem('geminiModelName');
-                }
-            }
-            alert("API settings updated successfully!");
-        } else {
-            localStorage.removeItem('geminiApiKey');
-            localStorage.removeItem('geminiModelName');
-            alert("API Key removed. AI features will be disabled until you add a new one.");
-        }
+    document.getElementById('modalApiKeyInput').value = currentKey;
+    document.getElementById('modalApiModelInput').value = currentModel;
+    document.getElementById('apiSettingsError').innerText = "";
+    
+    document.getElementById('apiSettingsOverlay').classList.remove('hidden');
+    document.getElementById('apiSettingsModal').classList.remove('hidden');
+}
+
+function closeApiSettingsModal() {
+    document.getElementById('apiSettingsOverlay').classList.add('hidden');
+    document.getElementById('apiSettingsModal').classList.add('hidden');
+}
+
+function saveApiSettings() {
+    const newKey = document.getElementById('modalApiKeyInput').value.trim();
+    const newModel = document.getElementById('modalApiModelInput').value.trim();
+    const errorEl = document.getElementById('apiSettingsError');
+
+    // Validation: Cannot provide a model name without an API key
+    if (!newKey && newModel) {
+        errorEl.innerText = "⚠️ API key is required if you are specifying a custom model.";
+        return;
     }
+
+    if (newKey) {
+        localStorage.setItem('geminiApiKey', newKey);
+        if (newModel) {
+            localStorage.setItem('geminiModelName', newModel);
+        } else {
+            localStorage.removeItem('geminiModelName');
+        }
+        alert("API settings updated successfully!");
+    } else {
+        // Both are blank, so we clear everything
+        localStorage.removeItem('geminiApiKey');
+        localStorage.removeItem('geminiModelName');
+        alert("API Key removed. AI features will be disabled until you add a new one.");
+    }
+    
+    // Sync the background configuration inputs so they match the new settings
+    if (document.getElementById('geminiApiKeyInput')) {
+        document.getElementById('geminiApiKeyInput').value = newKey;
+    }
+    
+    closeApiSettingsModal();
 }
 
 function updateSyncStatus(status) {
