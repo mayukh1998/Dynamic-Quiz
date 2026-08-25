@@ -692,9 +692,45 @@ function copyToClipboard(text, onSuccess, onError) {
 
 function fallbackCopy(text, onSuccess, onError) {
     const textArea = document.createElement("textarea");
-    textArea.value = text; textArea.style.position = "fixed"; textArea.style.top = "-999999px";
-    document.body.appendChild(textArea); textArea.focus(); textArea.select(); textArea.setSelectionRange(0, 999999); 
-    try { if (document.execCommand('copy') && onSuccess) onSuccess(); else if (onError) onError(new Error("Browser rejected copy.")); } catch (err) { if(onError) onError(err); }
+    textArea.value = text;
+    
+    // Prevent the screen from jumping on mobile
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+
+    document.body.appendChild(textArea);
+
+    // iOS-specific selection hack
+    if (navigator.userAgent.match(/ipad|iphone/i)) {
+        textArea.contentEditable = true;
+        textArea.readOnly = false;
+        
+        const range = document.createRange();
+        range.selectNodeContents(textArea);
+        
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        textArea.setSelectionRange(0, 999999);
+    } else {
+        // Standard PC/Android selection
+        textArea.focus();
+        textArea.select();
+    }
+
+    try {
+        const successful = document.execCommand('copy');
+        if (successful && onSuccess) {
+            onSuccess();
+        } else if (onError) {
+            onError(new Error("Browser rejected copy."));
+        }
+    } catch (err) {
+        if (onError) onError(err);
+    }
+    
     document.body.removeChild(textArea);
 }
 
@@ -705,27 +741,26 @@ function exportJSON() {
 
 function copyQuestion() {
     const q = quizData[curIdx];
-    let copyText = `Question: ${q.question}\n\n`;
+    
+    // Decode the question text to fix ASCII/HTML entities
+    let copyText = `Question: ${decodeHTMLEntities(q.question)}\n\n`;
     const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     
-    // Add the options nicely formatted
+    // Decode all options
     (q.options || []).forEach((opt, i) => { 
-        copyText += `${letters[i] || (i+1)}) ${opt}\n`; 
+        copyText += `${letters[i] || (i+1)}) ${decodeHTMLEntities(opt)}\n`; 
     });
     
-    // Trigger the copy and show visual feedback
     copyToClipboard(
         copyText, 
         () => {
+            // Visual success feedback on the button
             const btn = document.getElementById('copyQBtn');
             const originalHTML = btn.innerHTML;
-            // Show a green checkmark to confirm it copied
-            btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" stroke="var(--green)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-            
-            // Restore original icon after 1.5 seconds
+            btn.innerHTML = '✅';
             setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
         }, 
-        (err) => alert("Failed to copy question.")
+        (err) => alert("Failed to copy question. Check permissions.")
     );
 }
 
@@ -950,4 +985,11 @@ function nextQuestion() {
         const finalScore = quizData.filter(x => x.status === 'correct').length;
         alert(`Quiz Finished! Final Score: ${finalScore} out of ${quizData.length}`);
     }
+}
+
+function decodeHTMLEntities(text) {
+    if (!text) return "";
+    const textArea = document.createElement('textarea');
+    textArea.innerHTML = text;
+    return textArea.value;
 }
