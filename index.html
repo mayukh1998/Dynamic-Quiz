@@ -45,9 +45,10 @@
     <p style="color: var(--secondary); margin-top: 5px;">Concise, auto-generated notes based on quiz explanations.</p>
     <div id="notesContent" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px; font-size: 1.05em; line-height: 1.7; white-space: pre-wrap;"></div>
 </div>
-<!-- NEW: Custom API Settings Modal -->
-<div id="apiSettingsOverlay" class="overlay hidden"></div>
-<div id="apiSettingsModal" class="card review-modal hidden" style="max-width: 450px; top: 15%; padding: 30px;">
+
+<!-- API Settings Modal -->
+<div id="apiSettingsOverlay" class="overlay hidden" style="z-index: 2000;"></div>
+<div id="apiSettingsModal" class="card review-modal hidden" style="z-index: 2001; max-width: 450px; top: 15%; padding: 30px;">
     <h2 style="margin-top: 0; color: var(--text);">API Settings</h2>
     <p style="color: var(--secondary); margin-top: 0; margin-bottom: 20px;">Update your Gemini API credentials and preferred model.</p>
     
@@ -79,6 +80,18 @@
         <button id="cancelApiSettingsBtn" class="btn-secondary">Cancel</button>
     </div>
 </div>
+
+<!-- Universal Alert/Confirm Dialog Modal -->
+<div id="dialogOverlay" class="overlay hidden" style="z-index: 3000;"></div>
+<div id="dialogModal" class="card hidden" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 420px; z-index: 3001; padding: 30px; text-align: center; display: flex; flex-direction: column;">
+    <h2 id="dialogTitle" style="margin-top: 0; color: var(--text);">Notice</h2>
+    <p id="dialogMessage" style="color: var(--secondary); margin-top: 5px; margin-bottom: 25px; line-height: 1.5; font-size: 1.05em;"></p>
+    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+        <button id="dialogCancelBtn" class="btn-secondary hidden" style="padding: 12px 24px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer; border: none; flex: 1; font-size: 1em; color: var(--text);">Cancel</button>
+        <button id="dialogConfirmBtn" class="btn-primary" style="padding: 12px 24px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer; border: none; flex: 1; color: white; font-size: 1em;">OK</button>
+    </div>
+</div>
+
 <!-- Configuration Screens -->
 <div id="configScreen" class="config-container card">
     <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 35px;">
@@ -142,7 +155,6 @@
 
 <!-- Main App UI -->
 <div id="quizApp" class="app-wrapper hidden">
-    
     <!-- LEFT COLUMN -->
     <div class="left-column">
         <!-- Status Header -->

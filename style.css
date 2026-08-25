@@ -288,7 +288,6 @@ body {
 .bottom-actions button:active:not(:disabled) { transform: scale(0.97); box-shadow: var(--shadow); }
 .btn-secondary { background: var(--border); color: var(--text); }
 
-/* Warning Banner restricted strictly to missing HTML warnings */
 .warning-banner { 
     width: 100%;
     box-sizing: border-box;
@@ -320,7 +319,6 @@ input:focus, textarea:focus {
 .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 999; }
 .progress-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 90%; max-width: 420px; text-align: center; }
 
-/* Pulse animation for active AI check */
 @keyframes pulse-bar {
     0% { opacity: 1; }
     50% { opacity: 0.5; }
@@ -345,27 +343,7 @@ input:focus, textarea:focus {
 .close-review-btn:hover { color: var(--danger); transform: scale(1.1); border-color: var(--danger); }
 .close-review-btn:active { transform: scale(0.95); }
 
-.hidden { display: none !important; }
-
-@media (max-width: 768px) {
-    body { padding: 12px; }
-    .app-wrapper { flex-direction: column; align-items: stretch; width: 100%; gap: 16px; }
-    .left-column, .right-column { display: contents; }
-    .card { width: 100%; box-sizing: border-box; }
-    .status-card { order: 1; padding: 16px 20px; }
-    .actions-card { order: 2; padding: 16px; }
-    .sidebar-card { order: 3; padding: 20px; }
-    .quiz-card { order: 4; padding: 20px; }
-    .actions-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
-    .grid-btn { padding: 12px 10px; font-size: 0.9em; }
-    .nav-grid { width: 100%; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 10px; max-height: 240px; overflow-y: auto; padding-right: 6px; align-content: start; }
-    .nav-grid::-webkit-scrollbar { width: 5px; }
-    .nav-grid::-webkit-scrollbar-thumb { background-color: var(--secondary); border-radius: 4px; }
-    .bottom-actions { flex-direction: column; gap: 10px; width: 100%; }
-    .bottom-actions button { width: 100%; flex: none; }
-}
-
-/* Custom Info Tooltip */
+/* Custom Info Tooltip for API Settings */
 .info-tooltip {
     position: relative;
     display: inline-flex;
@@ -402,4 +380,24 @@ input:focus, textarea:focus {
     visibility: visible;
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+}
+
+.hidden { display: none !important; }
+
+@media (max-width: 768px) {
+    body { padding: 12px; }
+    .app-wrapper { flex-direction: column; align-items: stretch; width: 100%; gap: 16px; }
+    .left-column, .right-column { display: contents; }
+    .card { width: 100%; box-sizing: border-box; }
+    .status-card { order: 1; padding: 16px 20px; }
+    .actions-card { order: 2; padding: 16px; }
+    .sidebar-card { order: 3; padding: 20px; }
+    .quiz-card { order: 4; padding: 20px; }
+    .actions-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
+    .grid-btn { padding: 12px 10px; font-size: 0.9em; }
+    .nav-grid { width: 100%; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 10px; max-height: 240px; overflow-y: auto; padding-right: 6px; align-content: start; }
+    .nav-grid::-webkit-scrollbar { width: 5px; }
+    .nav-grid::-webkit-scrollbar-thumb { background-color: var(--secondary); border-radius: 4px; }
+    .bottom-actions { flex-direction: column; gap: 10px; width: 100%; }
+    .bottom-actions button { width: 100%; flex: none; }
 }

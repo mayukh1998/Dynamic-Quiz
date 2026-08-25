@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('changeApiKeyBtn').addEventListener('click', openApiSettingsModal);
     document.getElementById('saveApiSettingsBtn').addEventListener('click', saveApiSettings);
     document.getElementById('cancelApiSettingsBtn').addEventListener('click', closeApiSettingsModal);
+
     document.getElementById('checkAllBtn').addEventListener('click', checkAllWithGemini);
     
     document.getElementById('notesBtn').addEventListener('click', () => handleNotesGeneration(false));
@@ -81,16 +82,66 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('geminiHelpBtn').addEventListener('click', fetchGeminiAnswer);
     document.getElementById('toggleExplanationBtn').addEventListener('click', toggleExplanation);
-
     document.getElementById('closeReviewBtn').addEventListener('click', closeReviewModal);
 
     if (savedUrl) initiateLoad(false);
 });
 
+// --- UNIVERSAL DIALOG SYSTEM ---
+function showDialog(options) {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('dialogOverlay');
+        const modal = document.getElementById('dialogModal');
+        const titleEl = document.getElementById('dialogTitle');
+        const msgEl = document.getElementById('dialogMessage');
+        const confirmBtn = document.getElementById('dialogConfirmBtn');
+        const cancelBtn = document.getElementById('dialogCancelBtn');
+
+        titleEl.innerHTML = options.title || "Notice";
+        msgEl.innerHTML = options.message || "";
+        
+        confirmBtn.className = options.confirmClass || "btn-primary";
+        confirmBtn.style.padding = "12px 24px";
+        confirmBtn.style.borderRadius = "var(--radius-md)";
+        confirmBtn.style.fontWeight = "600";
+        confirmBtn.style.cursor = "pointer";
+        confirmBtn.style.border = "none";
+        confirmBtn.style.flex = "1";
+        confirmBtn.style.color = "white";
+        confirmBtn.style.fontSize = "1em";
+        confirmBtn.innerText = options.confirmText || "OK";
+
+        if (options.type === 'confirm') {
+            cancelBtn.classList.remove('hidden');
+            cancelBtn.innerText = options.cancelText || "Cancel";
+        } else {
+            cancelBtn.classList.add('hidden');
+        }
+
+        overlay.classList.remove('hidden');
+        modal.classList.remove('hidden');
+
+        const cleanup = () => {
+            overlay.classList.add('hidden');
+            modal.classList.add('hidden');
+        };
+
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        const newCancelBtn = cancelBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+        newConfirmBtn.addEventListener('click', () => { cleanup(); resolve(true); });
+        newCancelBtn.addEventListener('click', () => { cleanup(); resolve(false); });
+    });
+}
+const customAlert = (message, title="Notice", btnText="OK") => showDialog({ type: 'alert', message, title, confirmText: btnText, confirmClass: 'btn-indigo' });
+const customConfirm = (message, title="Please Confirm", confirmText="Yes", confirmClass="btn-indigo", cancelText="Cancel") => showDialog({ type: 'confirm', message, title, confirmText, confirmClass, cancelText });
+// -------------------------------
+
 function setTheme(isDark) {
     const themeBtn = document.getElementById('themeToggleBtn');
     const configThemeBtn = document.getElementById('themeToggleBtnConfig');
-    
     if (isDark) {
         document.body.classList.add('dark-theme');
         localStorage.setItem('quizTheme', 'dark');
@@ -109,8 +160,9 @@ function toggleTheme() {
     setTheme(isDark);
 }
 
-function unlinkDrive() {
-    if(!confirm("Are you sure? This will disconnect the app from Google Drive & clear your API key.")) return;
+async function unlinkDrive() {
+    const confirmed = await customConfirm("Are you sure? This will disconnect the app from Google Drive & clear your API key.", "Unlink Services", "Disconnect", "btn-red");
+    if(!confirmed) return;
     localStorage.removeItem('gasWebUrl');
     localStorage.removeItem('geminiApiKey');
     localStorage.removeItem('geminiModelName');
@@ -124,11 +176,9 @@ function unlinkDrive() {
 function openApiSettingsModal() {
     const currentKey = localStorage.getItem('geminiApiKey') || '';
     const currentModel = localStorage.getItem('geminiModelName') || '';
-    
     document.getElementById('modalApiKeyInput').value = currentKey;
     document.getElementById('modalApiModelInput').value = currentModel;
     document.getElementById('apiSettingsError').innerText = "";
-    
     document.getElementById('apiSettingsOverlay').classList.remove('hidden');
     document.getElementById('apiSettingsModal').classList.remove('hidden');
 }
@@ -138,12 +188,11 @@ function closeApiSettingsModal() {
     document.getElementById('apiSettingsModal').classList.add('hidden');
 }
 
-function saveApiSettings() {
+async function saveApiSettings() {
     const newKey = document.getElementById('modalApiKeyInput').value.trim();
     const newModel = document.getElementById('modalApiModelInput').value.trim();
     const errorEl = document.getElementById('apiSettingsError');
 
-    // Validation: Cannot provide a model name without an API key
     if (!newKey && newModel) {
         errorEl.innerText = "⚠️ API key is required if you are specifying a custom model.";
         return;
@@ -151,24 +200,18 @@ function saveApiSettings() {
 
     if (newKey) {
         localStorage.setItem('geminiApiKey', newKey);
-        if (newModel) {
-            localStorage.setItem('geminiModelName', newModel);
-        } else {
-            localStorage.removeItem('geminiModelName');
-        }
-        alert("API settings updated successfully!");
+        if (newModel) localStorage.setItem('geminiModelName', newModel);
+        else localStorage.removeItem('geminiModelName');
+        await customAlert("API settings updated successfully!", "Settings Saved");
     } else {
-        // Both are blank, so we clear everything
         localStorage.removeItem('geminiApiKey');
         localStorage.removeItem('geminiModelName');
-        alert("API Key removed. AI features will be disabled until you add a new one.");
+        await customAlert("API Key removed. AI features will be disabled until you add a new one.", "Services Unlinked");
     }
     
-    // Sync the background configuration inputs so they match the new settings
     if (document.getElementById('geminiApiKeyInput')) {
         document.getElementById('geminiApiKeyInput').value = newKey;
     }
-    
     closeApiSettingsModal();
 }
 
@@ -188,7 +231,7 @@ async function initiateLoad(isManual) {
     const geminiInput = document.getElementById('geminiApiKeyInput').value.trim();
 
     if (!urlInput) {
-        alert("Please paste the Google Apps Script URL.");
+        await customAlert("Please paste the Google Apps Script URL.", "Missing URL");
         return;
     }
     
@@ -215,7 +258,13 @@ async function initiateLoad(isManual) {
         let useLocalCache = false;
 
         if (isManual && cachedData && cachedData !== "[]" && cachedData !== "null") {
-            useLocalCache = confirm("Local saved progress was found on this device.\n\nClick 'OK' to upload and sync this local data TO the cloud.\nClick 'Cancel' to overwrite it and fetch data FROM the cloud.");
+            useLocalCache = await customConfirm(
+                "Local saved progress was found on this device.<br><br><b>Upload</b>: Sync this local data TO the cloud.<br><b>Overwrite</b>: Fetch data FROM the cloud.",
+                "Local Save Found",
+                "Upload",
+                "btn-blue",
+                "Overwrite"
+            );
         }
 
         if (useLocalCache) {
@@ -350,10 +399,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     const modelDisplay = document.getElementById('progressModelText');
     const errorDisplay = document.getElementById('progressErrorText');
     
-    // ALWAYS force the UI to show the exact model we are about to ping
-    if (modelDisplay) {
-        modelDisplay.innerText = `Model: ${model}`;
-    }
+    if (modelDisplay) modelDisplay.innerText = `Model: ${model}`;
 
     const buildBody = () => ({
         contents: [{ parts: [{ text: prompt }] }],
@@ -371,7 +417,6 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         body: JSON.stringify(buildBody())
     });
 
-    // Helper to safely parse Google's error format
     const parseError = async (res) => {
         const text = await res.clone().text();
         let msg = `HTTP Status ${res.status}`;
@@ -388,10 +433,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         let errorMessage = await parseError(response);
         console.warn(`Primary model (${model}) failed:`, response.status, errorMessage);
         
-        // ONLY trigger the retry/fallback process if NO custom model is set AND it's a server/rate issue
         if (!customModel && (response.status === 429 || response.status >= 500)) {
-            
-            // PHASE 1: Wait 30 seconds and retry the primary model
             if (errorDisplay) {
                 for (let sec = 30; sec > 0; sec--) {
                     errorDisplay.style.color = "var(--yellow)";
@@ -403,10 +445,8 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
 
             response = await callModel(model);
 
-            // PHASE 2: If the retry STILL fails, switch to the fallback
             if (!response.ok && (response.status === 429 || response.status >= 500)) {
                 errorMessage = await parseError(response);
-                
                 if (errorDisplay) {
                     for (let sec = 10; sec > 0; sec--) {
                         errorDisplay.style.color = "var(--orange)";
@@ -415,26 +455,15 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
                     }
                     errorDisplay.innerText = "Switching to fallback model...";
                 }
-
-                if (modelDisplay) {
-                    modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
-                }
-                
+                if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
                 response = await callModel(fallbackModel);
             }
-            
-            // Clear the switching/retrying text once a successful response comes through
-            if (response.ok && errorDisplay) {
-                errorDisplay.innerText = "";
-            }
-            
+            if (response.ok && errorDisplay) errorDisplay.innerText = "";
         } else {
-            // If custom model is set, OR error is 400/403/404, throw the error directly
             throw new Error(errorMessage);
         }
     }
 
-    // Check if the fallback ALSO failed
     if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error?.message || `HTTP Status ${response.status}`);
@@ -460,13 +489,13 @@ async function handleNotesGeneration(force = false) {
     }
     const apiKey = localStorage.getItem('geminiApiKey');
     if (!apiKey) {
-        alert("No API key found. Please click the key icon to add it.");
+        await customAlert("No API key found. Please open Settings to add it.", "Missing API Key");
         return;
     }
 
     const explanations = quizData.map(q => q.explanation).filter(exp => exp && exp.trim() !== "");
     if (explanations.length === 0) {
-        alert("No explanations found. Please generate explanations using AI first.");
+        await customAlert("No explanations found. Please generate explanations using AI first.", "Cannot Generate Notes");
         return;
     }
 
@@ -478,13 +507,11 @@ async function handleNotesGeneration(force = false) {
     const originalNotesBtnHTML = notesBtn.innerHTML;
     const originalRegenBtnHTML = regenBtn.innerHTML;
     
-    // Set loading state on buttons
     notesBtn.innerHTML = '⏳';
     notesBtn.disabled = true;
     regenBtn.innerHTML = '⏳';
     regenBtn.disabled = true;
 
-    // Utilize the unified Progress Modal
     const overlay = document.getElementById('progressOverlay');
     const modal = document.getElementById('progressModal');
     const title = document.getElementById('progressTitle');
@@ -515,7 +542,6 @@ async function handleNotesGeneration(force = false) {
         const rawOutput = await executeGeminiRequest(prompt, apiKey, NOTES_SCHEMA, 8192);
         const result = JSON.parse(rawOutput);
 
-        // Hide the modal immediately upon success
         bar.classList.remove('pulsing');
         overlay.classList.add('hidden');
         modal.classList.add('hidden');
@@ -532,7 +558,7 @@ async function handleNotesGeneration(force = false) {
         bar.classList.remove('pulsing');
         overlay.classList.add('hidden');
         modal.classList.add('hidden');
-        alert(`Failed to generate notes: ${err.message}`);
+        await customAlert(`Failed to generate notes: ${err.message}`, "Generation Error");
     } finally {
         notesBtn.innerHTML = originalNotesBtnHTML;
         notesBtn.disabled = false;
@@ -543,28 +569,16 @@ async function handleNotesGeneration(force = false) {
 
 function renderNotesModal(notesText) {
     let html = notesText;
-
-    // 1. Format Bold Text
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text);">$1</strong>');
-    
-    // 2. Format Headers (### Topic Name)
     html = html.replace(/^###\s+(.*$)/gim, '<h3 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h3>');
     html = html.replace(/^##\s+(.*$)/gim, '<h2 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h2>');
     html = html.replace(/^#\s+(.*$)/gim, '<h1 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h1>');
-    
-    // 3. Format Bullet Points (- item or * item)
     html = html.replace(/^[ \t]*[-*]\s+(.*)$/gim, '<li style="margin-bottom: 8px; line-height: 1.6;">$1</li>');
-    
-    // Wrap consecutive <li> tags into a parent <ul> tag
     html = html.replace(/(<li.*?>.*?<\/li>\s*)+/gim, '<ul style="padding-left: 24px; margin: 12px 0;">$&</ul>');
-
-    // 4. Convert double line-breaks into paragraph spaces
     html = html.replace(/\n\n/g, '<br><br>');
 
     const contentDiv = document.getElementById('notesContent');
     contentDiv.innerHTML = html;
-    
-    // CRITICAL FIX: Disable pre-wrap so raw newlines from the AI don't break sentences in half
     contentDiv.style.whiteSpace = 'normal'; 
     
     document.getElementById('notesOverlay').classList.remove('hidden');
@@ -579,23 +593,26 @@ function closeNotesModal() {
 async function checkAllWithGemini() {
     const apiKey = localStorage.getItem('geminiApiKey');
     if (!apiKey) {
-        alert("No API key found. Please click the key icon to add it.");
+        await customAlert("No API key found. Please open Settings to add it.", "Missing API Key");
         return;
     }
 
     const total = quizData.length;
     let savedProgress = parseInt(localStorage.getItem('checkAllProgress')) || 0;
-    
-    if (savedProgress >= total) {
-        savedProgress = 0;
-    }
+    if (savedProgress >= total) savedProgress = 0;
 
     let confirmMsg = "Are you sure you want to proceed? This will check ALL questions in batches. It may take some time depending on quiz length.";
+    let title = "Check All Questions";
+    let btn = "Start Check";
+    
     if (savedProgress > 0) {
-        confirmMsg = `Resume pending AI check from question ${savedProgress + 1}?\n\nClick OK to continue where you left off.`;
+        confirmMsg = `Resume pending AI check from question ${savedProgress + 1}?<br><br>Click Resume to continue where you left off.`;
+        title = "Resume Check";
+        btn = "Resume";
     }
 
-    if(!confirm(confirmMsg)) return;
+    const confirmed = await customConfirm(confirmMsg, title, btn, "btn-indigo");
+    if(!confirmed) return;
 
     const overlay = document.getElementById('progressOverlay');
     const modal = document.getElementById('progressModal');
@@ -616,7 +633,7 @@ async function checkAllWithGemini() {
     text.innerText = `${completed} / ${total}`;
     errorText.innerText = "";
     
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-2.5-flash';
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
     modelDisplay.innerText = `Model: ${displayModel}`;
     
     await delay(50);
@@ -725,7 +742,6 @@ Instructions:
     }
 
     localStorage.removeItem('checkAllProgress');
-
     overlay.classList.add('hidden');
     modal.classList.add('hidden');
     
@@ -733,7 +749,7 @@ Instructions:
     renderSidebar();
     
     if (changedQuestions.length > 0) showReviewModal(changedQuestions);
-    else alert("Answers and explanations have been successfully synced!");
+    else await customAlert("Answers and explanations have been successfully synced!", "Sync Complete");
 }
 
 function showReviewModal(changes) {
@@ -766,7 +782,6 @@ function closeReviewModal() {
     document.getElementById('reviewModal').classList.add('hidden');
 }
 
-/* Accordion Toggle Logic */
 function toggleExplanation() {
     const expText = document.getElementById('explanationText');
     const toggleBtnSpan = document.querySelector('#toggleExplanationBtn span');
@@ -786,13 +801,13 @@ function toggleExplanation() {
 async function fetchGeminiAnswer() {
     const apiKey = localStorage.getItem('geminiApiKey');
     if (!apiKey) { 
-        alert("No API key found. Please click the key icon to add it."); 
+        await customAlert("No API key found. Please open Settings to add it.", "Missing API Key"); 
         return; 
     }
     
     const q = quizData[curIdx];
     if (!q.options || q.options.length === 0) { 
-        alert("Cannot use AI because this question has no options. Please use the edit tool to add options first."); 
+        await customAlert("Cannot use AI because this question has no options. Please use the edit tool to add options first.", "Missing Options"); 
         return; 
     }
 
@@ -819,7 +834,7 @@ async function fetchGeminiAnswer() {
     text.innerText = "Single Verification";
     errorText.innerText = "";
     
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-2.5-flash';
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
     modelDisplay.innerText = `Model: ${displayModel}`;
 
     overlay.classList.remove('hidden');
@@ -869,7 +884,10 @@ Instructions:
         if (!isSame) {
             const formattedNew = formatIndicesToLetters(newAnswers);
             const formattedOld = formatIndicesToLetters(oldAnswers);
-            const userConfirmed = confirm(`The AI suggests the correct answer is: ${formattedNew}.\nYour JSON currently has: ${formattedOld}.\n\nDo you want to update your JSON DB with this answer?`);
+            const userConfirmed = await customConfirm(
+                `The AI suggests the correct answer is: <b>${formattedNew}</b>.<br>Your JSON currently has: <b>${formattedOld}</b>.<br><br>Do you want to update your JSON DB with this answer?`,
+                "AI Answer Update", "Update Answer", "btn-green"
+            );
             if (userConfirmed) {
                 q.correctAnswers = newAnswers;
                 if (q.userAnswer !== null) {
@@ -902,7 +920,7 @@ Instructions:
         bar.classList.remove('pulsing');
         overlay.classList.add('hidden');
         modal.classList.add('hidden');
-        alert(`Failed to reach AI: ${err.message}`);
+        await customAlert(`Failed to reach AI: ${err.message}`, "AI Error");
     } finally {
         geminiBtn.innerHTML = originalGeminiBtnHTML;
         geminiBtn.style.opacity = '1';
@@ -913,8 +931,9 @@ Instructions:
     }
 }
 
-function showReuploadScreen() {
-    if(!confirm("Warning: Pasting new JSON will overwrite your current cloud file and reset all progress. Do you wish to continue?")) return;
+async function showReuploadScreen() {
+    const confirmed = await customConfirm("Warning: Pasting new JSON will overwrite your current cloud file and reset all progress. Do you wish to continue?", "Overwrite Warning", "Continue", "btn-red");
+    if(!confirmed) return;
     document.getElementById('quizApp').classList.add('hidden');
     document.getElementById('jsonInputScreen').classList.remove('hidden');
     document.getElementById('jsonInput').value = ""; 
@@ -925,7 +944,7 @@ function cancelReupload() {
     startApp();
 }
 
-function handleNewJsonSubmit() {
+async function handleNewJsonSubmit() {
     try {
         const rawData = JSON.parse(document.getElementById('jsonInput').value);
         if(!Array.isArray(rawData) || rawData.length === 0) throw new Error("Data must be a non-empty array");
@@ -940,7 +959,7 @@ function handleNewJsonSubmit() {
         document.getElementById('jsonInputScreen').classList.add('hidden');
         syncStateToDrive(); startApp();
     } catch(e) { 
-        alert("Invalid JSON format! Please ensure you pasted a valid JSON array matching the placeholder structure."); 
+        await customAlert("Invalid JSON format! Please ensure you pasted a valid JSON array matching the placeholder structure.", "Format Error"); 
         console.error(e);
     }
 }
@@ -952,8 +971,9 @@ function startApp() {
     renderSidebar(); renderQ();
 }
 
-function restartQuiz() {
-    if(!confirm("Restart the quiz? Progress will be lost, but your modified JSON answers and marked questions will be kept.")) return;
+async function restartQuiz() {
+    const confirmed = await customConfirm("Restart the quiz? Progress will be lost, but your modified JSON answers and marked questions will be kept.", "Restart Quiz", "Restart", "btn-yellow");
+    if(!confirmed) return;
     quizData.forEach(q => { q.userAnswer = null; q.status = null; });
     curIdx = 0; isEditingQuestion = false;
     syncStateToDrive(); renderSidebar(); renderQ();
@@ -969,13 +989,10 @@ function decodeHTMLEntities(text) {
 function fallbackCopy(text, onSuccess, onError) {
     const el = document.createElement('div');
     el.textContent = text;
-    
     el.style.whiteSpace = 'pre-wrap';
-    
     el.style.position = 'fixed';
     el.style.left = '-9999px';
     el.style.top = '0';
-    
     document.body.appendChild(el);
     
     const selection = window.getSelection();
@@ -986,15 +1003,11 @@ function fallbackCopy(text, onSuccess, onError) {
     
     try {
         const successful = document.execCommand('copy');
-        if (successful && onSuccess) {
-            onSuccess();
-        } else if (onError) {
-            onError(new Error("Browser rejected copy."));
-        }
+        if (successful && onSuccess) onSuccess();
+        else if (onError) onError(new Error("Browser rejected copy."));
     } catch (err) {
         if (onError) onError(err);
     }
-    
     selection.removeAllRanges();
     document.body.removeChild(el);
 }
@@ -1009,18 +1022,13 @@ function copyToClipboard(text, onSuccess, onError) {
 
 function copyQuestion() {
     const q = quizData[curIdx];
-    
     let decodedQ = decodeHTMLEntities(q.question).trim();
     let copyText = "";
     
-    if (/^[^a-zA-Z]*question/i.test(decodedQ)) {
-        copyText = `${decodedQ}\n\n`;
-    } else {
-        copyText = `Question: ${decodedQ}\n\n`;
-    }
+    if (/^[^a-zA-Z]*question/i.test(decodedQ)) copyText = `${decodedQ}\n\n`;
+    else copyText = `Question: ${decodedQ}\n\n`;
     
     const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-    
     (q.options || []).forEach((opt, i) => { 
         copyText += `${letters[i] || (i+1)}) ${decodeHTMLEntities(opt).trim()}\n`; 
     });
@@ -1033,18 +1041,23 @@ function copyQuestion() {
             btn.innerHTML = '✅';
             setTimeout(() => { btn.innerHTML = originalHTML; }, 1500);
         }, 
-        (err) => alert("Failed to copy question. Check permissions.")
+        async (err) => await customAlert("Failed to copy question. Check permissions.", "Copy Failed")
     );
 }
 
 function exportJSON() {
     const cleanData = quizData.map(({ userAnswer, status, marked, explanation, ...rest }) => rest);
-    copyToClipboard(JSON.stringify(cleanData, null, 4), () => alert("Cleaned JSON copied to clipboard!"), (err) => alert("Failed to copy."));
+    copyToClipboard(
+        JSON.stringify(cleanData, null, 4), 
+        async () => await customAlert("Cleaned JSON copied to clipboard!", "Export Success"), 
+        async (err) => await customAlert("Failed to copy.", "Export Failed")
+    );
 }
 
-function goToQuestion(index) {
+async function goToQuestion(index) {
     if (isEditingQuestion) {
-        if(!confirm("You have unsaved edits. Discard changes?")) return;
+        const confirmed = await customConfirm("You have unsaved edits. Discard changes?", "Unsaved Edits", "Discard", "btn-red");
+        if(!confirmed) return;
         isEditingQuestion = false;
     }
     curIdx = index; syncStateToDrive(); renderSidebar(); renderQ();
@@ -1070,9 +1083,7 @@ function renderSidebar() {
 
     setTimeout(() => {
         const activeBtn = navGrid.querySelector('.nav-btn.active');
-        if (activeBtn) {
-            activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+        if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 50);
 }
 
@@ -1113,12 +1124,12 @@ function renderEditOptionsUI() {
     });
 }
 
-function saveEditedData() {
+async function saveEditedData() {
     const q = quizData[curIdx];
     q.question = document.getElementById('editQTextInput').value.trim();
     q.options = tempEditOptions.map(o => o.trim());
     q.correctAnswers = [...tempEditAnswers];
-    if (q.options.length === 0) { alert("Please add at least one option."); return; }
+    if (q.options.length === 0) { await customAlert("Please add at least one option.", "Missing Options"); return; }
 
     q.userAnswer = null; q.status = null; isEditingQuestion = false;
     syncStateToDrive(); renderQ(); renderSidebar();
@@ -1242,12 +1253,12 @@ function toggleMark() {
     syncStateToDrive(); renderQ(); renderSidebar(); 
 }
 
-function submitAnswer() {
+async function submitAnswer() {
     const q = quizData[curIdx];
     const inputs = document.querySelectorAll('input[name="quizOption"]');
     const selected = Array.from(inputs).filter(i => i.checked).map(i => parseInt(i.value));
     
-    if(selected.length === 0) { alert("Please select an answer before submitting."); return; }
+    if(selected.length === 0) { await customAlert("Please select an answer before submitting.", "Selection Required"); return; }
 
     const isCorrect = selected.length === q.correctAnswers.length && selected.every(val => q.correctAnswers.includes(val));
     q.userAnswer = selected; q.status = isCorrect ? 'correct' : 'incorrect';
@@ -1255,10 +1266,10 @@ function submitAnswer() {
     syncStateToDrive(); renderQ(); renderSidebar();
 }
 
-function nextQuestion() {
+async function nextQuestion() {
     if (curIdx < quizData.length - 1) goToQuestion(curIdx + 1);
     else {
         const finalScore = quizData.filter(x => x.status === 'correct').length;
-        alert(`Quiz Finished! Final Score: ${finalScore} out of ${quizData.length}`);
+        await customAlert(`Quiz Finished! Final Score: ${finalScore} out of ${quizData.length}`, "Quiz Complete");
     }
 }
