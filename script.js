@@ -16,15 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeBtn = document.getElementById('themeToggleBtn');
     const configThemeBtn = document.getElementById('themeToggleBtnConfig');
     
-    // Initialize Theme
-    if (localStorage.getItem('quizTheme') === 'light') {
-        document.body.classList.remove('dark-theme');
-        if (themeBtn) themeBtn.innerHTML = moonSvg; 
-        if (configThemeBtn) configThemeBtn.innerHTML = moonSvg;
+    // Initialize Theme (Default to Light Mode)
+    if (localStorage.getItem('quizTheme') === 'dark') {
+        setTheme(true);
     } else {
-        document.body.classList.add('dark-theme');
-        if (themeBtn) themeBtn.innerHTML = sunSvg; 
-        if (configThemeBtn) configThemeBtn.innerHTML = sunSvg;
+        setTheme(false); 
     }
     
     if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
@@ -416,7 +412,6 @@ async function checkAllWithGemini() {
     text.innerText = `${completed} / ${total}`;
     errorText.innerText = "";
 
-    // DOUBLE YIELD: Guarantees the browser paints the modal before loop starts
     await delay(50);
     void modal.offsetWidth; 
     await delay(300); 
@@ -449,23 +444,19 @@ async function checkAllWithGemini() {
                     const q = quizData[i + idx];
                     const oldAnswers = q.correctAnswers || [];
                     
-                    // NEW: Fetch AI answers and filter out any impossible hallucinatory indices
                     let rawNewAnswers = result.correctAnswers || [];
                     const maxIdx = (q.options || []).length - 1;
                     const newAnswers = rawNewAnswers.filter(val => val >= 0 && val <= maxIdx);
 
                     const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
-                    // Only update if answers are different AND we actually have options to choose from
                     if (!isSame && (q.options || []).length > 0) {
                         changedQuestions.push({
                             index: i + idx, question: q.question, options: q.options || [],
                             oldAnswers: [...oldAnswers], newAnswers: [...newAnswers]
                         });
 
-                        q.correctAnswers = newAnswers; // Updates the DB
-                        
-                        // Recalculates user score if they already played this question
+                        q.correctAnswers = newAnswers;
                         if (q.userAnswer !== null) {
                             const isUserCorrect = q.userAnswer.length === q.correctAnswers.length && q.userAnswer.every(val => q.correctAnswers.includes(val));
                             q.status = isUserCorrect ? 'correct' : 'incorrect';
@@ -602,7 +593,11 @@ async function fetchGeminiAnswer() {
         const result = JSON.parse(rawOutput);
 
         const oldAnswers = q.correctAnswers || [];
-        const newAnswers = result.correctAnswers || [];
+        
+        let rawNewAnswers = result.correctAnswers || [];
+        const maxIdx = (q.options || []).length - 1;
+        const newAnswers = rawNewAnswers.filter(val => val >= 0 && val <= maxIdx);
+
         const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
         let dataUpdated = false;
@@ -693,37 +688,36 @@ function restartQuiz() {
     syncStateToDrive(); renderSidebar(); renderQ();
 }
 
-function copyToClipboard(text, onSuccess, onError) {
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess, onError));
-    else fallbackCopy(text, onSuccess, onError);
+function decodeHTMLEntities(text) {
+    if (!text) return "";
+    const textArea = document.createElement('textarea');
+    textArea.innerHTML = text;
+    return textArea.value;
 }
 
 function fallbackCopy(text, onSuccess, onError) {
     const textArea = document.createElement("textarea");
     textArea.value = text;
     
-    // Prevent the screen from jumping on mobile
-    textArea.style.top = "0";
-    textArea.style.left = "0";
+    // Minimal styling to keep it hidden but selectable
     textArea.style.position = "fixed";
-    textArea.style.opacity = "0";
-
+    textArea.style.top = "0";
+    textArea.style.left = "-9999px";
+    
+    // Make readonly to prevent keyboard popup on iOS
+    textArea.setAttribute("readonly", "true");
+    
     document.body.appendChild(textArea);
 
-    // iOS-specific selection hack
     if (navigator.userAgent.match(/ipad|iphone/i)) {
-        textArea.contentEditable = true;
-        textArea.readOnly = false;
-        
+        // Remove contentEditable, it breaks plain text copying on iOS
         const range = document.createRange();
         range.selectNodeContents(textArea);
-        
         const selection = window.getSelection();
         selection.removeAllRanges();
         selection.addRange(range);
         textArea.setSelectionRange(0, 999999);
     } else {
-        // Standard PC/Android selection
         textArea.focus();
         textArea.select();
     }
@@ -742,6 +736,14 @@ function fallbackCopy(text, onSuccess, onError) {
     document.body.removeChild(textArea);
 }
 
+function copyToClipboard(text, onSuccess, onError) {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => fallbackCopy(text, onSuccess, onError));
+    } else {
+        fallbackCopy(text, onSuccess, onError);
+    }
+}
+
 function exportJSON() {
     const cleanData = quizData.map(({ userAnswer, status, marked, explanation, ...rest }) => rest);
     copyToClipboard(JSON.stringify(cleanData, null, 4), () => alert("Cleaned JSON copied to clipboard!"), (err) => alert("Failed to copy."));
@@ -750,11 +752,18 @@ function exportJSON() {
 function copyQuestion() {
     const q = quizData[curIdx];
     
-    // Decode the question text to fix ASCII/HTML entities
-    let copyText = `Question: ${decodeHTMLEntities(q.question)}\n\n`;
+    let decodedQ = decodeHTMLEntities(q.question);
+    let copyText = "";
+    
+    // Check if the string already starts with "Question" (ignoring markdown bolding and spaces)
+    if (/^(\*|\s)*question/i.test(decodedQ)) {
+        copyText = `${decodedQ}\n\n`;
+    } else {
+        copyText = `Question: ${decodedQ}\n\n`;
+    }
+    
     const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     
-    // Decode all options
     (q.options || []).forEach((opt, i) => { 
         copyText += `${letters[i] || (i+1)}) ${decodeHTMLEntities(opt)}\n`; 
     });
@@ -762,7 +771,6 @@ function copyQuestion() {
     copyToClipboard(
         copyText, 
         () => {
-            // Visual success feedback on the button
             const btn = document.getElementById('copyQBtn');
             const originalHTML = btn.innerHTML;
             btn.innerHTML = '✅';
@@ -771,8 +779,6 @@ function copyQuestion() {
         (err) => alert("Failed to copy question. Check permissions.")
     );
 }
-
-
 
 function goToQuestion(index) {
     if (isEditingQuestion) {
@@ -993,11 +999,4 @@ function nextQuestion() {
         const finalScore = quizData.filter(x => x.status === 'correct').length;
         alert(`Quiz Finished! Final Score: ${finalScore} out of ${quizData.length}`);
     }
-}
-
-function decodeHTMLEntities(text) {
-    if (!text) return "";
-    const textArea = document.createElement('textarea');
-    textArea.innerHTML = text;
-    return textArea.value;
 }
