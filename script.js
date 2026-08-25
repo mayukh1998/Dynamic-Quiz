@@ -306,7 +306,7 @@ function formatIndicesToLetters(indicesArray) {
 }
 
 async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
-    let model = 'gemini-3.6-flash';
+    let model = 'gemini-3.7-flash';
     
     // Dynamically update the UI if the progress modal is open
     const modelDisplay = document.getElementById('progressModelText');
@@ -331,7 +331,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     let response = await callModel(model);
 
     if (response.status === 429 || !response.ok) {
-        model = 'gemini-3-flash-preview';
+        model = 'gemini-3.5-flash-lite';
         
         // Instantly update the UI to show that a fallback model is being used
         if (modelDisplay) modelDisplay.innerText = `Model: ${model} (Fallback)`;
