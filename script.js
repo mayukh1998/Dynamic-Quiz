@@ -696,32 +696,26 @@ function decodeHTMLEntities(text) {
 }
 
 function fallbackCopy(text, onSuccess, onError) {
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
+    const el = document.createElement('textarea');
+    el.value = text;
     
-    // Minimal styling to keep it hidden but selectable
-    textArea.style.position = "fixed";
-    textArea.style.top = "0";
-    textArea.style.left = "-9999px";
+    // Prevent zooming and keep out of viewport
+    el.setAttribute('readonly', '');
+    el.style.position = 'absolute';
+    el.style.left = '-9999px';
+    el.style.top = '0';
     
-    // Make readonly to prevent keyboard popup on iOS
-    textArea.setAttribute("readonly", "true");
+    document.body.appendChild(el);
     
-    document.body.appendChild(textArea);
-
-    if (navigator.userAgent.match(/ipad|iphone/i)) {
-        // Remove contentEditable, it breaks plain text copying on iOS
-        const range = document.createRange();
-        range.selectNodeContents(textArea);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        textArea.setSelectionRange(0, 999999);
-    } else {
-        textArea.focus();
-        textArea.select();
-    }
-
+    // Save existing user selection if there is one
+    const selected = document.getSelection().rangeCount > 0
+        ? document.getSelection().getRangeAt(0)
+        : false;
+            
+    // Select the text cleanly for both iOS and Android/PC
+    el.select();
+    el.setSelectionRange(0, 999999); 
+    
     try {
         const successful = document.execCommand('copy');
         if (successful && onSuccess) {
@@ -733,7 +727,13 @@ function fallbackCopy(text, onSuccess, onError) {
         if (onError) onError(err);
     }
     
-    document.body.removeChild(textArea);
+    document.body.removeChild(el);
+    
+    // Restore original selection
+    if (selected) {
+        document.getSelection().removeAllRanges();
+        document.getSelection().addRange(selected);
+    }
 }
 
 function copyToClipboard(text, onSuccess, onError) {
@@ -744,19 +744,14 @@ function copyToClipboard(text, onSuccess, onError) {
     }
 }
 
-function exportJSON() {
-    const cleanData = quizData.map(({ userAnswer, status, marked, explanation, ...rest }) => rest);
-    copyToClipboard(JSON.stringify(cleanData, null, 4), () => alert("Cleaned JSON copied to clipboard!"), (err) => alert("Failed to copy."));
-}
-
 function copyQuestion() {
     const q = quizData[curIdx];
     
-    let decodedQ = decodeHTMLEntities(q.question);
+    let decodedQ = decodeHTMLEntities(q.question).trim();
     let copyText = "";
     
-    // Check if the string already starts with "Question" (ignoring markdown bolding and spaces)
-    if (/^(\*|\s)*question/i.test(decodedQ)) {
+    // Regex looks for "Question" ignoring any leading asterisks, dashes, or spaces
+    if (/^[^a-zA-Z]*question/i.test(decodedQ)) {
         copyText = `${decodedQ}\n\n`;
     } else {
         copyText = `Question: ${decodedQ}\n\n`;
@@ -765,7 +760,7 @@ function copyQuestion() {
     const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
     
     (q.options || []).forEach((opt, i) => { 
-        copyText += `${letters[i] || (i+1)}) ${decodeHTMLEntities(opt)}\n`; 
+        copyText += `${letters[i] || (i+1)}) ${decodeHTMLEntities(opt).trim()}\n`; 
     });
     
     copyToClipboard(
@@ -778,6 +773,11 @@ function copyQuestion() {
         }, 
         (err) => alert("Failed to copy question. Check permissions.")
     );
+}
+
+function exportJSON() {
+    const cleanData = quizData.map(({ userAnswer, status, marked, explanation, ...rest }) => rest);
+    copyToClipboard(JSON.stringify(cleanData, null, 4), () => alert("Cleaned JSON copied to clipboard!"), (err) => alert("Failed to copy."));
 }
 
 function goToQuestion(index) {
