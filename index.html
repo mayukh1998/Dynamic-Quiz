@@ -13,18 +13,16 @@
 
 <div id="progressOverlay" class="overlay hidden"></div>
 <div id="progressModal" class="card progress-modal hidden">
-    <h3 style="margin-top: 0;">Syncing...</h3>
-    <p style="font-size: 0.9em; color: var(--secondary);">Processing sequentially in batches. Please do not close the page.</p>
+    <!-- IDs added so JS can dynamically change the text -->
+    <h3 id="progressTitle" style="margin-top: 0;">Syncing...</h3>
+    <p id="progressDesc" style="font-size: 0.9em; color: var(--secondary);">Processing sequentially in batches. Please do not close the page.</p>
+    
     <div style="background: var(--border); border-radius: 8px; height: 20px; overflow: hidden; margin: 15px 0;">
         <div id="progressBar" style="background: var(--green); width: 0%; height: 100%; transition: width 0.3s;"></div>
     </div>
     
-    <!-- Updated margins to group texts nicely -->
     <p id="progressText" style="font-weight: bold; color: var(--text); margin: 0 0 5px 0;">0 / 0</p>
-    
-    <!-- NEW: Model Display Text -->
     <p id="progressModelText" style="font-size: 0.85em; color: var(--indigo); margin: 0; font-weight: 600;"></p>
-    
     <p id="progressErrorText" style="color: var(--red); font-weight: bold; font-size: 0.9em; margin-top: 10px; min-height: 20px;"></p>
 </div>
 
@@ -63,7 +61,6 @@
         </button>
     </div>
     
-    <!-- WRAPPED INPUTS TO FORCE PERFECT SPACING -->
     <div style="display: flex; flex-direction: column; gap: 20px;">
         <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec" style="margin: 0;">
         <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key (Optional)" style="margin: 0;">
@@ -151,7 +148,6 @@
         <!-- Action Buttons Grid -->
         <div class="card actions-card">
             <div class="actions-grid">
-                <!-- Check All Button now uses Star/Sparkle SVG -->
                 <button id="checkAllBtn" class="grid-btn btn-indigo">
                     <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M9.5 2L12 8.5 18.5 11 12 13.5 9.5 20 7 13.5 0.5 11 7 8.5z"></path><path d="M19 2l1.5 3.5 3.5 1.5-3.5 1.5L19 12l-1.5-3.5L14 7l3.5-1.5z"></path>

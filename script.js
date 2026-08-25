@@ -8,8 +8,6 @@ let tempEditAnswers = [];
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Structured-output schemas: passed as generationConfig.response_schema so Gemini is
-// constrained to return exactly this shape, instead of merely being *asked* to via the prompt.
 const SINGLE_ANSWER_SCHEMA = {
     type: "OBJECT",
     properties: {
@@ -30,7 +28,6 @@ const NOTES_SCHEMA = {
     required: ["notes"]
 };
 
-// SVG Icons for the Theme Toggle
 const sunSvg = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`;
 const moonSvg = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
 
@@ -38,7 +35,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const themeBtn = document.getElementById('themeToggleBtn');
     const configThemeBtn = document.getElementById('themeToggleBtnConfig');
     
-    // Initialize Theme (Default to Light Mode)
     if (localStorage.getItem('quizTheme') === 'dark') {
         setTheme(true);
     } else {
@@ -308,7 +304,6 @@ function formatIndicesToLetters(indicesArray) {
 async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
     let model = 'gemini-3.7-flash';
     
-    // Dynamically update the UI if the progress modal is open
     const modelDisplay = document.getElementById('progressModelText');
     if (modelDisplay) modelDisplay.innerText = `Model: ${model}`;
 
@@ -317,7 +312,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         generationConfig: {
             response_mime_type: "application/json",
             ...(responseSchema ? { response_schema: responseSchema } : {}),
-            temperature: 0.0, // Locks deterministic, highest-accuracy reasoning (must live INSIDE generationConfig)
+            temperature: 0.0, 
             maxOutputTokens: maxOutputTokens
         }
     });
@@ -333,7 +328,6 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     if (response.status === 429 || !response.ok) {
         model = 'gemini-3.5-flash-lite';
         
-        // Instantly update the UI to show that a fallback model is being used
         if (modelDisplay) modelDisplay.innerText = `Model: ${model} (Fallback)`;
         
         response = await callModel(model);
@@ -349,7 +343,6 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     const text = candidate?.content?.parts?.[0]?.text;
 
     if (!text) {
-        // Common causes: safety filters blocked the response, or it was cut off before finishing.
         const reason = candidate?.finishReason || data.promptFeedback?.blockReason;
         if (reason === 'MAX_TOKENS') throw new Error("AI response was cut off (ran out of output tokens). Try a smaller batch size.");
         if (reason) throw new Error(`AI returned no usable content (reason: ${reason}).`);
@@ -448,6 +441,11 @@ async function checkAllWithGemini() {
     const text = document.getElementById('progressText');
     const errorText = document.getElementById('progressErrorText');
     
+    // Set to explicit Batch Check mode
+    document.getElementById('progressTitle').innerText = "Syncing...";
+    document.getElementById('progressDesc').innerText = "Processing sequentially in batches. Please do not close the page.";
+    bar.classList.remove('pulsing');
+
     overlay.classList.remove('hidden');
     modal.classList.remove('hidden');
 
@@ -637,31 +635,35 @@ async function fetchGeminiAnswer() {
     const geminiBtn = document.getElementById('geminiHelpBtn');
     const originalGeminiBtnHTML = geminiBtn.innerHTML;
     
-    // Set loading state on button
     geminiBtn.innerHTML = '⏳';
     geminiBtn.style.opacity = '0.8';
     geminiBtn.disabled = true;
 
-    // Full-width progress banner across the question card
-    const warningEl = document.getElementById('missingAnswerWarning');
-    warningEl.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <span>✨</span>
-            <strong>AI is analyzing options & verifying accuracy...</strong>
-        </div>
-        <span style="font-size: 0.9em; opacity: 0.85;">Please wait a moment...</span>
-    `;
-    warningEl.style.display = "flex";
-    warningEl.style.width = "100%";
-    warningEl.style.background = "rgba(147, 51, 234, 0.15)";
-    warningEl.style.color = "var(--purple)";
-    warningEl.style.borderColor = "var(--purple)";
-    warningEl.classList.remove('hidden');
+    // Utilize the unified Progress Modal instead of the inline banner
+    const overlay = document.getElementById('progressOverlay');
+    const modal = document.getElementById('progressModal');
+    const title = document.getElementById('progressTitle');
+    const desc = document.getElementById('progressDesc');
+    const bar = document.getElementById('progressBar');
+    const text = document.getElementById('progressText');
+    const errorText = document.getElementById('progressErrorText');
+    const modelDisplay = document.getElementById('progressModelText');
 
-    // NOTE: previously this stripped any leading non-alphanumeric characters from the question
-    // (e.g. via .replace(/^[^a-zA-Z0-9]+/, '')). That silently mangled questions that legitimately
-    // start with symbols, quotes, code fences, or markdown (`` ` ``, `{`, `<`, `"`, `-`, etc.),
-    // handing the AI a corrupted question and producing a wrong-looking answer. Just decode + trim.
+    title.innerText = "✨ Analyzing Question...";
+    desc.innerText = "AI is evaluating the options against official documentation.";
+    bar.style.width = '100%';
+    bar.classList.add('pulsing');
+    text.innerText = "Single Verification";
+    errorText.innerText = "";
+    modelDisplay.innerText = "Model: Connecting...";
+
+    overlay.classList.remove('hidden');
+    modal.classList.remove('hidden');
+
+    await delay(50);
+    void modal.offsetWidth; 
+    await delay(300);
+
     const cleanQuestion = decodeHTMLEntities(q.question).trim();
     const optionsString = q.options.map((opt, i) => `[Index ${i}]: ${decodeHTMLEntities(opt)}`).join('\n');
     
@@ -686,6 +688,11 @@ Instructions:
         const rawOutput = await executeGeminiRequest(prompt, apiKey, SINGLE_ANSWER_SCHEMA);
         const result = JSON.parse(rawOutput);
 
+        // Hide the modal immediately before the confirm dialog pops up so the background clears
+        bar.classList.remove('pulsing');
+        overlay.classList.add('hidden');
+        modal.classList.add('hidden');
+
         const oldAnswers = q.correctAnswers || [];
         let rawNewAnswers = result.correctAnswers || [];
         const maxIdx = (q.options || []).length - 1;
@@ -694,7 +701,7 @@ Instructions:
         const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
         let dataUpdated = false;
-        let applyExplanation = true; // becomes false only if the user declines a proposed answer change
+        let applyExplanation = true; 
         if (!isSame) {
             const formattedNew = formatIndicesToLetters(newAnswers);
             const formattedOld = formatIndicesToLetters(oldAnswers);
@@ -707,8 +714,6 @@ Instructions:
                 }
                 dataUpdated = true;
             } else {
-                // The AI's explanation justifies the answer it suggested, not the one you kept.
-                // Applying it here would leave a mismatched explanation next to your existing answer.
                 applyExplanation = false;
             }
         }
@@ -730,16 +735,17 @@ Instructions:
 
     } catch (err) {
         console.error("AI Error:", err);
+        bar.classList.remove('pulsing');
+        overlay.classList.add('hidden');
+        modal.classList.add('hidden');
         alert(`Failed to reach AI: ${err.message}`);
-        warningEl.style.display = "";
-        warningEl.style.background = "";
-        warningEl.style.color = "";
-        warningEl.style.borderColor = "";
-        warningEl.classList.add('hidden');
     } finally {
         geminiBtn.innerHTML = originalGeminiBtnHTML;
         geminiBtn.style.opacity = '1';
         geminiBtn.disabled = false;
+        bar.classList.remove('pulsing');
+        overlay.classList.add('hidden');
+        modal.classList.add('hidden');
     }
 }
 
@@ -797,21 +803,17 @@ function decodeHTMLEntities(text) {
 }
 
 function fallbackCopy(text, onSuccess, onError) {
-    // Use a standard div instead of a textarea to bypass iOS Safari's "Link/URI" clipboard bug
     const el = document.createElement('div');
     el.textContent = text;
     
-    // Preserve formatting and line breaks
     el.style.whiteSpace = 'pre-wrap';
     
-    // Keep it hidden and out of the viewport
     el.style.position = 'fixed';
     el.style.left = '-9999px';
     el.style.top = '0';
     
     document.body.appendChild(el);
     
-    // Programmatically highlight the text like a user would with their finger
     const selection = window.getSelection();
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -829,7 +831,6 @@ function fallbackCopy(text, onSuccess, onError) {
         if (onError) onError(err);
     }
     
-    // Cleanup the DOM and selection
     selection.removeAllRanges();
     document.body.removeChild(el);
 }
@@ -848,7 +849,6 @@ function copyQuestion() {
     let decodedQ = decodeHTMLEntities(q.question).trim();
     let copyText = "";
     
-    // Regex looks for "Question" ignoring any leading asterisks, dashes, or spaces
     if (/^[^a-zA-Z]*question/i.test(decodedQ)) {
         copyText = `${decodedQ}\n\n`;
     } else {

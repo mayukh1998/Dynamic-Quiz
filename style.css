@@ -152,7 +152,6 @@ body {
 .sidebar-header { margin: 0 0 20px 0; font-size: 1.1em; display: flex; justify-content: space-between; }
 .nav-grid { 
     display: grid; 
-    /* This automatically fits as many 45px wide buttons as possible into one row */
     grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); 
     gap: 12px;
 }
@@ -170,8 +169,6 @@ body {
 .nav-btn.correct { background: var(--tile-correct); }
 .nav-btn.incorrect { background: var(--tile-incorrect); }
 .nav-btn.marked { background: var(--purple); }
-
-/* Active Question Highlight */
 .nav-btn.active { 
     outline: 2px solid var(--text); 
     outline-offset: 3px;
@@ -207,17 +204,14 @@ body {
 
 .quiz-card { padding: 35px; }
 
-/* Meta Top Row */
 .q-meta { 
     display: flex; justify-content: space-between; align-items: center; 
     margin-bottom: 25px; border-bottom: 1px solid var(--border); padding-bottom: 15px;
 }
 .meta-left { font-size: 0.95em; color: var(--secondary); font-weight: 500; }
 .meta-right { display: flex; gap: 10px; }
-
 .q-text { font-size: 1.2em; margin-bottom: 30px; font-weight: 600; line-height: 1.5; }
 
-/* Quiz Options */
 .options-container { display: flex; flex-direction: column; gap: 14px; }
 .option-label { 
     display: flex; align-items: center; padding: 18px 20px; 
@@ -243,7 +237,6 @@ body {
 }
 .option-label input[type="checkbox"]::before { border-radius: 3px; }
 
-/* Active Glow State */
 .option-label:has(input:checked) {
     border-color: var(--pink-glow);
     background: rgba(244, 114, 182, 0.08);
@@ -251,7 +244,6 @@ body {
 .option-label input:checked { border-color: var(--pink-glow); }
 .option-label input:checked::before { transform: scale(1); }
 
-/* Overrides once submitted */
 .option-label.correct { background: rgba(16, 185, 129, 0.15) !important; border-color: var(--green) !important; color: var(--green) !important; }
 .option-label.correct input { border-color: var(--green); }
 .option-label.correct input:checked::before { box-shadow: inset 1em 1em var(--green); }
@@ -259,10 +251,8 @@ body {
 .option-label.incorrect { background: rgba(239, 68, 68, 0.15) !important; border-color: var(--red) !important; color: var(--red) !important; }
 .option-label.incorrect input { border-color: var(--red); }
 .option-label.incorrect input:checked::before { box-shadow: inset 1em 1em var(--red); }
-
 .option-label.disabled { cursor: not-allowed; opacity: 0.8; }
 
-/* Explanation Box & Accordion */
 .explanation-box { 
     margin-top: 30px; 
     padding: 15px 20px; 
@@ -287,7 +277,6 @@ body {
 .explanation-toggle .chevron { transition: transform 0.3s ease; }
 .explanation-toggle.open .chevron { transform: rotate(180deg); }
 
-/* Bottom Buttons */
 .bottom-actions { display: flex; gap: 12px; margin-top: 35px; flex-wrap: wrap; }
 .bottom-actions button {
     padding: 14px 24px; border: none; border-radius: var(--radius-md);
@@ -298,27 +287,20 @@ body {
 .bottom-actions button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.1); box-shadow: var(--shadow-hover); }
 .bottom-actions button:active:not(:disabled) { transform: scale(0.97); box-shadow: var(--shadow); }
 .btn-secondary { background: var(--border); color: var(--text); }
+
+/* Warning Banner restricted strictly to missing HTML warnings */
 .warning-banner { 
     width: 100%;
-    max-width: 100%;
     box-sizing: border-box;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: 6px 16px;
     padding: 14px 18px; 
-    margin: 0 0 24px 0; 
+    margin-bottom: 24px; 
     background: rgba(239, 68, 68, 0.15); 
     color: var(--red); 
     border: 1px solid var(--red); 
     border-radius: var(--radius-md); 
     font-size: 0.95em; 
-    overflow-wrap: anywhere;
-    word-break: break-word;
 }
 
-/* Forms & Modals */
 input[type="text"], input[type="password"], textarea { 
     width: 100%; padding: 14px; margin: 15px 0; 
     border: 1px solid var(--secondary); 
@@ -328,19 +310,24 @@ input[type="text"], input[type="password"], textarea {
     transition: all 0.2s ease;
 }
 input:focus, textarea:focus { 
-    outline: none; 
-    border-color: var(--indigo); 
+    outline: none; border-color: var(--indigo); 
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); 
 }
 .edit-form-container { background: var(--option-bg); padding: 25px; border-radius: var(--radius-md); margin-bottom: 25px; }
-
 #addOptionBtn { background-color: var(--secondary) !important; color: #ffffff !important; border: none; }
 #addOptionBtn:hover { filter: brightness(1.1); }
 
 .overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 999; }
 .progress-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000; width: 90%; max-width: 420px; text-align: center; }
 
-/* Modal & Sticky Close Button Updates */
+/* Pulse animation for active AI check */
+@keyframes pulse-bar {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+.pulsing { animation: pulse-bar 1.5s infinite ease-in-out; }
+
 .review-modal, .notes-modal { 
     position: fixed; top: 5%; left: 50%; transform: translateX(-50%); 
     width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; 
@@ -360,88 +347,20 @@ input:focus, textarea:focus {
 
 .hidden { display: none !important; }
 
-/* Mobile */
-/* ========================================================
-   RESPONSIVE MOBILE FIXES
-   ======================================================== */
 @media (max-width: 768px) {
-    body {
-        padding: 12px; /* Gives maximum screen real estate */
-    }
-
-    .app-wrapper { 
-        flex-direction: column; 
-        align-items: stretch; /* Forces all cards to stretch to 100% width */
-        width: 100%;
-        gap: 16px; 
-    }
-    
-    .left-column, .right-column { 
-        display: contents; /* Allows reordering across columns */
-    }
-    
-    /* 100% Full-Width Mobile Cards */
-    .card {
-        width: 100%;
-        box-sizing: border-box;
-    }
-    
-    .status-card { 
-        order: 1; 
-        padding: 16px 20px;
-    }
-    
-    .actions-card { 
-        order: 2; 
-        padding: 16px;
-    }
-    
-    .sidebar-card { 
-        order: 3; 
-        padding: 20px;
-    }
-    
-    .quiz-card { 
-        order: 4; 
-        padding: 20px;
-    }
-
-    /* Action Grid 2-column layout */
-    .actions-grid { 
-        grid-template-columns: repeat(2, 1fr); 
-        gap: 10px;
-        width: 100%;
-    }
-    
-    .grid-btn {
-        padding: 12px 10px;
-        font-size: 0.9em;
-    }
-
-    /* Quiz Progress Grid expands across the entire card width */
-    .nav-grid { 
-        width: 100%;
-        /* Slightly smaller minimum width for mobile to fit nicely */
-        grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
-        gap: 10px;
-        max-height: 240px; /* ~4.5 rows visible */
-        overflow-y: auto; 
-        padding-right: 6px; 
-        align-content: start;
-    }
-    
+    body { padding: 12px; }
+    .app-wrapper { flex-direction: column; align-items: stretch; width: 100%; gap: 16px; }
+    .left-column, .right-column { display: contents; }
+    .card { width: 100%; box-sizing: border-box; }
+    .status-card { order: 1; padding: 16px 20px; }
+    .actions-card { order: 2; padding: 16px; }
+    .sidebar-card { order: 3; padding: 20px; }
+    .quiz-card { order: 4; padding: 20px; }
+    .actions-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
+    .grid-btn { padding: 12px 10px; font-size: 0.9em; }
+    .nav-grid { width: 100%; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 10px; max-height: 240px; overflow-y: auto; padding-right: 6px; align-content: start; }
     .nav-grid::-webkit-scrollbar { width: 5px; }
     .nav-grid::-webkit-scrollbar-thumb { background-color: var(--secondary); border-radius: 4px; }
-
-    /* Bottom Buttons stack cleanly on mobile */
-    .bottom-actions {
-        flex-direction: column;
-        gap: 10px;
-        width: 100%;
-    }
-    
-    .bottom-actions button { 
-        width: 100%; 
-        flex: none; 
-    }
+    .bottom-actions { flex-direction: column; gap: 10px; width: 100%; }
+    .bottom-actions button { width: 100%; flex: none; }
 }
