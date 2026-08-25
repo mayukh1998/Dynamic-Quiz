@@ -13,10 +13,8 @@
 
 <div id="progressOverlay" class="overlay hidden"></div>
 <div id="progressModal" class="card progress-modal hidden">
-    <!-- IDs added so JS can dynamically change the text -->
     <h3 id="progressTitle" style="margin-top: 0;">Syncing...</h3>
     <p id="progressDesc" style="font-size: 0.9em; color: var(--secondary);">Processing sequentially in batches. Please do not close the page.</p>
-    
     <div style="background: var(--border); border-radius: 8px; height: 20px; overflow: hidden; margin: 15px 0;">
         <div id="progressBar" style="background: var(--green); width: 0%; height: 100%; transition: width 0.3s;"></div>
     </div>
@@ -55,16 +53,12 @@
             <h2 style="margin: 0 0 10px 0;">Connect Integrations</h2>
             <p style="margin: 0; color: var(--secondary);">Paste your Google Apps Script URL for cloud saving, and your Gemini API Key for AI features.</p>
         </div>
-        <!-- Theme Toggle for the Connect Screen -->
-        <button id="themeToggleBtnConfig" class="icon-btn" title="Toggle Theme" style="flex-shrink: 0; margin-left: 15px;">
-            <!-- SVG injected by JS -->
-        </button>
+        <button id="themeToggleBtnConfig" class="icon-btn" title="Toggle Theme" style="flex-shrink: 0; margin-left: 15px;"></button>
     </div>
     
     <div style="display: flex; flex-direction: column; gap: 20px;">
         <input type="text" id="scriptUrlInput" placeholder="https://script.google.com/macros/s/.../exec" style="margin: 0;">
         <input type="password" id="geminiApiKeyInput" placeholder="Enter Gemini API Key (Optional)" style="margin: 0;">
-        <input type="text" id="geminiModelInput" placeholder="Gemini Model Name (Optional, defaults to gemini-3.7-flash)" style="margin: 0;">
     </div>
     
     <div style="display: flex; justify-content: flex-end; margin-top: 25px;">
@@ -131,7 +125,7 @@
                 <button id="themeToggleBtn" class="icon-btn" title="Toggle Theme">
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
                 </button>
-                <button id="changeApiKeyBtn" class="icon-btn" title="Change API Key">
+                <button id="changeApiKeyBtn" class="icon-btn" title="Change API Key & Model">
                     <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
                 </button>
             </div>

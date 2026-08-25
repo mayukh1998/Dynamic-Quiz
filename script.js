@@ -46,13 +46,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const savedUrl = localStorage.getItem('gasWebUrl');
     const savedApiKey = localStorage.getItem('geminiApiKey');
-    const savedModelName = localStorage.getItem('geminiModelName');
     
     if (savedUrl) document.getElementById('scriptUrlInput').value = savedUrl;
     if (savedApiKey) document.getElementById('geminiApiKeyInput').value = savedApiKey;
-    if (savedModelName && document.getElementById('geminiModelInput')) {
-        document.getElementById('geminiModelInput').value = savedModelName;
-    }
 
     document.getElementById('loadBtn').addEventListener('click', () => initiateLoad(true));
     document.getElementById('clearCacheBtn').addEventListener('click', unlinkDrive);
@@ -134,7 +130,7 @@ function changeApiKey() {
             
             // New secondary prompt for custom model input
             const currentModel = localStorage.getItem('geminiModelName') || '';
-            const newModel = prompt("Enter preferred Gemini Model Name (Optional):\n\n(Leave blank to use default 'gemini-2.5-flash')", currentModel);
+            const newModel = prompt("Enter preferred Gemini Model Name (Optional):\n\n(Leave blank to use default 'gemini-3.7-flash')", currentModel);
             
             if (newModel !== null) {
                 const trimmedModel = newModel.trim();
@@ -167,7 +163,6 @@ function updateSyncStatus(status) {
 async function initiateLoad(isManual) {
     const urlInput = document.getElementById('scriptUrlInput').value.trim();
     const geminiInput = document.getElementById('geminiApiKeyInput').value.trim();
-    const modelInput = document.getElementById('geminiModelInput') ? document.getElementById('geminiModelInput').value.trim() : "";
 
     if (!urlInput) {
         alert("Please paste the Google Apps Script URL.");
@@ -176,11 +171,6 @@ async function initiateLoad(isManual) {
     
     appsScriptUrl = urlInput;
     if (geminiInput) localStorage.setItem('geminiApiKey', geminiInput);
-    if (modelInput) {
-        localStorage.setItem('geminiModelName', modelInput);
-    } else {
-        localStorage.removeItem('geminiModelName');
-    }
 
     const loadProgressContainer = document.getElementById('loadProgressContainer');
     const loadProgressText = document.getElementById('loadProgressText');
@@ -329,6 +319,8 @@ function formatIndicesToLetters(indicesArray) {
 
 async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
     let defaultModel = 'gemini-3.7-flash'; 
+    let fallbackModel = 'gemini-3.5-flash-lite';
+    
     let customModel = localStorage.getItem('geminiModelName');
     let model = customModel || defaultModel;
     
@@ -361,17 +353,15 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         const errorText = await response.clone().text();
         console.warn(`Primary model (${model}) failed:`, response.status, errorText);
         
-        // Only fallback if we hit a Rate Limit (429) or Server Error (5xx)
-        if ((response.status === 429 || response.status >= 500) && !customModel) {
-            // Using 3.5-flash as the highly reliable fallback
-            let fallbackModel = 'gemini-3.5-flash-lite'; 
-            
+        // ONLY fallback to 3.5-flash-lite if NO custom model is set AND it's a rate limit / server error
+        if (!customModel && (response.status === 429 || response.status >= 500)) {
             // Instantly update the UI to show the fallback model taking over in real-time
             if (modelDisplay) {
                 modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
             }
             response = await callModel(fallbackModel);
         } else {
+            // If custom model is set, OR error is 400/403/404, throw the error directly
             let errorMessage = `HTTP Status ${response.status}`;
             try {
                 const errData = JSON.parse(errorText);
@@ -381,6 +371,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         }
     }
 
+    // Check if the fallback ALSO failed
     if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         throw new Error(errData.error?.message || `HTTP Status ${response.status}`);
@@ -488,8 +479,8 @@ async function checkAllWithGemini() {
     const bar = document.getElementById('progressBar');
     const text = document.getElementById('progressText');
     const errorText = document.getElementById('progressErrorText');
+    const modelDisplay = document.getElementById('progressModelText');
     
-    // Set to explicit Batch Check mode
     document.getElementById('progressTitle').innerText = "Syncing...";
     document.getElementById('progressDesc').innerText = "Processing sequentially in batches. Please do not close the page.";
     bar.classList.remove('pulsing');
@@ -502,7 +493,9 @@ async function checkAllWithGemini() {
     text.innerText = `${completed} / ${total}`;
     errorText.innerText = "";
     
-    document.getElementById('progressModelText').innerText = "Model: Connecting...";
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-2.5-flash';
+    modelDisplay.innerText = `Model: ${displayModel}`;
+    
     await delay(50);
     void modal.offsetWidth; 
     await delay(300); 
@@ -683,12 +676,10 @@ async function fetchGeminiAnswer() {
     const geminiBtn = document.getElementById('geminiHelpBtn');
     const originalGeminiBtnHTML = geminiBtn.innerHTML;
     
-    // Set loading state on button
     geminiBtn.innerHTML = '⏳';
     geminiBtn.style.opacity = '0.8';
     geminiBtn.disabled = true;
 
-    // Utilize the unified Progress Modal instead of the inline banner
     const overlay = document.getElementById('progressOverlay');
     const modal = document.getElementById('progressModal');
     const title = document.getElementById('progressTitle');
@@ -704,7 +695,9 @@ async function fetchGeminiAnswer() {
     bar.classList.add('pulsing');
     text.innerText = "Single Verification";
     errorText.innerText = "";
-    modelDisplay.innerText = "Model: Connecting...";
+    
+    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-2.5-flash';
+    modelDisplay.innerText = `Model: ${displayModel}`;
 
     overlay.classList.remove('hidden');
     modal.classList.remove('hidden');
@@ -737,7 +730,6 @@ Instructions:
         const rawOutput = await executeGeminiRequest(prompt, apiKey, SINGLE_ANSWER_SCHEMA);
         const result = JSON.parse(rawOutput);
 
-        // Hide the modal immediately before the confirm dialog pops up so the background clears
         bar.classList.remove('pulsing');
         overlay.classList.add('hidden');
         modal.classList.add('hidden');
