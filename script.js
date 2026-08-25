@@ -6,6 +6,7 @@ let globalNotes = null;
 let globalLastReview = null; // NEW: Stores the history of the last AI batch check
 let tempEditOptions = [];
 let tempEditAnswers = [];
+let globalAbortController = null; // NEW: Global controller for cancelling APIs
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -85,6 +86,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('geminiHelpBtn').addEventListener('click', fetchGeminiAnswer);
     document.getElementById('toggleExplanationBtn').addEventListener('click', toggleExplanation);
     document.getElementById('closeReviewBtn').addEventListener('click', closeReviewModal);
+    document.getElementById('cancelApiBtn').addEventListener('click', () => {
+        if (globalAbortController && !globalAbortController.signal.aborted) {
+            const errorDisplay = document.getElementById('progressErrorText');
+            if (errorDisplay) {
+                errorDisplay.style.color = "var(--orange)";
+                errorDisplay.innerText = "Cancelling...";
+            }
+            globalAbortController.abort(); // Immediately kills the fetch and trips the abort signal
+        }
+    });
 
     if (savedUrl) initiateLoad(false);
 });
@@ -427,9 +438,11 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
             return await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-                body: JSON.stringify(buildBody())
+                body: JSON.stringify(buildBody()),
+                signal: globalAbortController ? globalAbortController.signal : undefined // Assigns abort signal
             });
         } catch (err) {
+            if (err.name === 'AbortError') throw err; // Throws immediately to break the code chain
             return { ok: false, status: 0, networkError: "Network connection failed or timed out." };
         }
     };
@@ -461,6 +474,9 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
 
             if (errorDisplay) {
                 for (let sec = retryWaitTime; sec > 0; sec--) {
+                    if (globalAbortController && globalAbortController.signal.aborted) {
+                        const e = new Error("Aborted"); e.name = "AbortError"; throw e;
+                    }
                     errorDisplay.style.color = "var(--yellow)";
                     errorDisplay.innerText = `High demand/Network issue. Retrying same model in ${sec}s...`;
                     await delay(1000);
@@ -476,6 +492,9 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
                 if (!customModel && (response.status === 429 || response.status >= 500 || response.status === 0)) {
                     if (errorDisplay) {
                         for (let sec = 10; sec > 0; sec--) {
+                            if (globalAbortController && globalAbortController.signal.aborted) {
+                                const e = new Error("Aborted"); e.name = "AbortError"; throw e;
+                            }
                             errorDisplay.style.color = "var(--orange)";
                             errorDisplay.innerText = `Retry failed. Switching to fallback model in ${sec}s...`;
                             await delay(1000);
@@ -571,6 +590,9 @@ async function startBatchCheck(startIndex) {
     document.getElementById('progressDesc').innerText = "Processing sequentially in batches. This may take approximately 15–20 minutes. Please keep this page open until the process is complete.";
     bar.classList.remove('pulsing');
 
+    // NEW: Initialize controller for this process
+    globalAbortController = new AbortController();
+
     overlay.classList.remove('hidden');
     modal.classList.remove('hidden');
 
@@ -589,7 +611,6 @@ async function startBatchCheck(startIndex) {
     let dataUpdated = false;
     const batchSize = 20;
 
-    // Ensure the global tracker is prepped. If starting fresh, clear it.
     if (startIndex === 0) {
         globalLastReview = [];
     } else if (!globalLastReview) {
@@ -640,7 +661,6 @@ Instructions:
                     const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
                     if (!isSame && (q.options || []).length > 0) {
-                        // Push directly to the global review cache
                         globalLastReview.push({
                             index: i + idx, question: q.question, options: q.options || [],
                             oldAnswers: [...oldAnswers], newAnswers: [...newAnswers]
@@ -660,8 +680,24 @@ Instructions:
                 });
                 success = true; 
             } catch (err) {
+                // If Cancel Request was pressed, cleanup and abort completely
+                if (err.name === 'AbortError') {
+                    overlay.classList.add('hidden');
+                    modal.classList.add('hidden');
+                    renderQ();
+                    renderSidebar();
+                    return; 
+                }
+
                 console.error("Batch Check Error:", err);
                 for(let sec = 60; sec > 0; sec--) {
+                    if (globalAbortController && globalAbortController.signal.aborted) {
+                        overlay.classList.add('hidden');
+                        modal.classList.add('hidden');
+                        renderQ();
+                        renderSidebar();
+                        return;
+                    }
                     errorText.style.color = "var(--red)";
                     errorText.innerText = `Request failed (${err.message}). Retrying in ${sec}s...`;
                     await delay(1000);
@@ -673,7 +709,6 @@ Instructions:
         completed += batch.length;
         localStorage.setItem('checkAllProgress', completed);
         
-        // Force the partial review state to lock into localStorage mid-loop
         saveState(); 
 
         if (dataUpdated) {
@@ -686,6 +721,13 @@ Instructions:
 
         if (completed < total) {
             for (let sec = 15; sec > 0; sec--) {
+                if (globalAbortController && globalAbortController.signal.aborted) {
+                    overlay.classList.add('hidden');
+                    modal.classList.add('hidden');
+                    renderQ();
+                    renderSidebar();
+                    return;
+                }
                 errorText.style.color = "var(--yellow)";
                 errorText.innerText = `Rate limit: Waiting ${sec}s before next batch...`;
                 await delay(1000);
@@ -695,7 +737,6 @@ Instructions:
         }
     }
 
-    // Clean up local progress since the job successfully finished
     localStorage.removeItem('checkAllProgress');
     overlay.classList.add('hidden');
     modal.classList.add('hidden');
@@ -703,7 +744,6 @@ Instructions:
     renderQ();
     renderSidebar();
     
-    // Explicitly sync the final review payload to the Cloud JSON Drive file
     saveState();
     await syncStateToDrive();
     
@@ -801,6 +841,9 @@ async function fetchGeminiAnswer() {
     let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.7-flash';
     modelDisplay.innerText = `Model: ${displayModel}`;
 
+    // NEW: Initialize controller
+    globalAbortController = new AbortController();
+
     overlay.classList.remove('hidden');
     modal.classList.remove('hidden');
 
@@ -849,8 +892,8 @@ Instructions:
             const formattedNew = formatIndicesToLetters(newAnswers);
             const formattedOld = formatIndicesToLetters(oldAnswers);
             const userConfirmed = await customConfirm(
-                `AI Agent suggests the correct answer is: <b>${formattedNew}</b>.<br>Your JSON currently has: <b>${formattedOld}</b>.<br><br>Do you want to update your JSON DB with this answer?`,
-                "Agent's Answer Update", "Update Answer", "btn-green"
+                `The AI suggests the correct answer is: <b>${formattedNew}</b>.<br>Your JSON currently has: <b>${formattedOld}</b>.<br><br>Do you want to update your JSON DB with this answer?`,
+                "AI Answer Update", "Update Answer", "btn-green"
             );
             if (userConfirmed) {
                 q.correctAnswers = newAnswers;
@@ -880,6 +923,8 @@ Instructions:
         if (toggleBtnSpan) toggleBtnSpan.innerText = "Hide Explanation";
 
     } catch (err) {
+        if (err.name === 'AbortError') return; // Cancelled silently via UI button
+
         console.error("AI Error:", err);
         bar.classList.remove('pulsing');
         overlay.classList.add('hidden');
