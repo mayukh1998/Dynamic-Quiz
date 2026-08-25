@@ -364,3 +364,42 @@ input:focus, textarea:focus {
     .bottom-actions { flex-direction: column; gap: 10px; width: 100%; }
     .bottom-actions button { width: 100%; flex: none; }
 }
+
+/* Custom Info Tooltip */
+.info-tooltip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    cursor: help;
+    outline: none;
+}
+.info-tooltip .tooltip-box {
+    visibility: hidden;
+    width: 280px;
+    background: var(--card-bg);
+    color: var(--text-muted);
+    text-align: left;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    position: absolute;
+    z-index: 1005;
+    bottom: 140%;
+    left: 50%;
+    transform: translateX(-50%) translateY(5px);
+    box-shadow: var(--shadow-hover);
+    font-size: 0.85em;
+    font-weight: 500;
+    line-height: 1.5;
+    opacity: 0;
+    transition: all 0.2s ease;
+    pointer-events: none;
+}
+.info-tooltip:hover .tooltip-box,
+.info-tooltip:focus .tooltip-box,
+.info-tooltip:active .tooltip-box {
+    visibility: visible;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
