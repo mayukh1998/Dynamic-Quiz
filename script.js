@@ -348,41 +348,60 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         body: JSON.stringify(buildBody())
     });
 
+    // Helper to safely parse Google's error format
+    const parseError = async (res) => {
+        const text = await res.clone().text();
+        let msg = `HTTP Status ${res.status}`;
+        try {
+            const errData = JSON.parse(text);
+            msg = errData.error?.message || msg;
+        } catch(e) {}
+        return msg;
+    };
+
     let response = await callModel(model);
 
     if (!response.ok) {
-        const errorText = await response.clone().text();
-        console.warn(`Primary model (${model}) failed:`, response.status, errorText);
+        let errorMessage = await parseError(response);
+        console.warn(`Primary model (${model}) failed:`, response.status, errorMessage);
         
-        // Parse the exact error message from Google
-        let errorMessage = `HTTP Status ${response.status}`;
-        try {
-            const errData = JSON.parse(errorText);
-            errorMessage = errData.error?.message || errorMessage;
-        } catch(e) {}
-        
-        // ONLY fallback to 3.5-flash-lite if NO custom model is set AND it's a rate limit / server error
+        // ONLY trigger the retry/fallback process if NO custom model is set AND it's a server/rate issue
         if (!customModel && (response.status === 429 || response.status >= 500)) {
             
-            // Show the error and run a 10-second countdown timer before falling back
+            // PHASE 1: Wait 30 seconds and retry the primary model
             if (errorDisplay) {
-                for (let sec = 10; sec > 0; sec--) {
+                for (let sec = 30; sec > 0; sec--) {
                     errorDisplay.style.color = "var(--yellow)";
-                    errorDisplay.innerText = `Model failed (${errorMessage}). Falling back in ${sec}s...`;
+                    errorDisplay.innerText = `High demand (${errorMessage}). Retrying primary model in ${sec}s...`;
                     await delay(1000);
                 }
-                errorDisplay.innerText = "Switching to fallback model...";
+                errorDisplay.innerText = "Retrying primary model...";
             }
 
-            // Update the UI to show the fallback model taking over
-            if (modelDisplay) {
-                modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
+            response = await callModel(model);
+
+            // PHASE 2: If the retry STILL fails, switch to the fallback
+            if (!response.ok && (response.status === 429 || response.status >= 500)) {
+                errorMessage = await parseError(response);
+                
+                if (errorDisplay) {
+                    for (let sec = 10; sec > 0; sec--) {
+                        errorDisplay.style.color = "var(--orange)";
+                        errorDisplay.innerText = `Retry failed. Switching to fallback model in ${sec}s...`;
+                        await delay(1000);
+                    }
+                    errorDisplay.innerText = "Switching to fallback model...";
+                }
+
+                if (modelDisplay) {
+                    modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
+                }
+                
+                response = await callModel(fallbackModel);
             }
             
-            response = await callModel(fallbackModel);
-            
-            // Clear the switching text once the fallback request completes
-            if (errorDisplay && errorDisplay.innerText.includes("Switching")) {
+            // Clear the switching/retrying text once a successful response comes through
+            if (response.ok && errorDisplay) {
                 errorDisplay.innerText = "";
             }
             
