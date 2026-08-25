@@ -294,7 +294,8 @@ async function executeGeminiRequest(prompt, apiKey) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { response_mime_type: "application/json" }
+            generationConfig: { response_mime_type: "application/json" },
+            temperature: 0.0 // Locks deterministic, highest-accuracy reasoning
         })
     });
 
@@ -437,8 +438,21 @@ async function checkAllWithGemini() {
             return `Question ID: ${i + idx}\nQuestion: ${q.question}\nOptions:\n${optionsString}`;
         }).join('\n\n');
 
-        const prompt = `You are a technical quiz assistant. Given the following batch of questions, return the correct option index (or indices if multiple) and an explanation (max 600 chars) for each. The explanation MUST explicitly state why the correct answer is right AND briefly point out why the other provided options are incorrect. If a question is entirely missing options, return an empty array for correctAnswers.\nReturn strictly a valid JSON array of objects matching this schema, exactly in the order the questions were provided, no markdown blocks:\n[\n{\n"correctAnswers": [number, ...],\n"explanation": "string (under 600 chars)"\n}\n]\n\nQuestions:\n${batchPrompt}`;
+        const prompt = `You are an expert technical exam evaluator. Given the following batch of questions, evaluate each question carefully against official documentation.
 
+Questions:
+${batchPrompt}
+
+Instructions:
+1. Identify the exact correct option index or indices for each question. If options are missing, return an empty array.
+2. Provide a concise explanation (under 600 characters) stating why the chosen option is correct and why the alternatives are incorrect.
+3. Return strictly a JSON array of objects in the exact question order:
+[
+  {
+    "correctAnswers": [number],
+    "explanation": "string"
+  }
+]`;
         let success = false;
         while (!success) {
             try {
@@ -575,35 +589,66 @@ function toggleExplanation() {
 
 async function fetchGeminiAnswer() {
     const apiKey = localStorage.getItem('geminiApiKey');
-    if (!apiKey) { alert("No API key found. Please click the key icon to add it."); return; }
+    if (!apiKey) { 
+        alert("No API key found. Please click the key icon to add it."); 
+        return; 
+    }
     
     const q = quizData[curIdx];
-    if (!q.options || q.options.length === 0) { alert("Cannot use AI because this question has no options. Please use the edit tool to add options first."); return; }
+    if (!q.options || q.options.length === 0) { 
+        alert("Cannot use AI because this question has no options. Please use the edit tool to add options first."); 
+        return; 
+    }
 
     const geminiBtn = document.getElementById('geminiHelpBtn');
     const originalGeminiBtnHTML = geminiBtn.innerHTML;
     
-    // UI Feedback BEFORE processing
+    // Set loading state on button
     geminiBtn.innerHTML = '⏳';
     geminiBtn.style.opacity = '0.8';
     geminiBtn.disabled = true;
 
+    // Full-width progress banner across the question card
     const warningEl = document.getElementById('missingAnswerWarning');
-    warningEl.innerHTML = "<strong>✨ AI is analyzing the options...</strong> Please wait a moment.";
+    warningEl.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span>✨</span>
+            <strong>AI is analyzing options & verifying accuracy...</strong>
+        </div>
+        <span style="font-size: 0.9em; opacity: 0.85;">Please wait a moment...</span>
+    `;
+    warningEl.style.display = "flex";
+    warningEl.style.width = "100%";
     warningEl.style.background = "rgba(147, 51, 234, 0.15)";
     warningEl.style.color = "var(--purple)";
     warningEl.style.borderColor = "var(--purple)";
     warningEl.classList.remove('hidden');
 
-    const optionsString = q.options.map((opt, i) => `[Index ${i}]: ${opt}`).join('\n');
-    const prompt = `You are a technical quiz assistant. Given the question and options below, return the correct option index (or indices if multiple) and a comprehensive explanation (max 600 characters). The explanation MUST explicitly state why the correct answer is right AND briefly point out why the other provided options are incorrect.\nQuestion: ${q.question}\nOptions:\n${optionsString}\nReturn strictly a valid JSON object matching this schema, no markdown blocks:\n{\n"correctAnswers": [number, ...],\n"explanation": "string (under 600 chars)"\n}`;
+    const cleanQuestion = decodeHTMLEntities(q.question).replace(/^[^a-zA-Z0-9]+/, '').trim();
+    const optionsString = q.options.map((opt, i) => `[Index ${i}]: ${decodeHTMLEntities(opt)}`).join('\n');
+    
+    const prompt = `You are an expert technical exam evaluator. 
+
+Evaluate the following question and options carefully:
+Question: ${cleanQuestion}
+
+Options:
+${optionsString}
+
+Instructions:
+1. Determine the exact correct option index or indices based strictly on official documentation and best practices.
+2. Provide a concise, clear explanation (under 600 characters) stating why the chosen option is correct and briefly why the alternatives are incorrect.
+3. Return ONLY a valid JSON object matching this schema:
+{
+  "correctAnswers": [number],
+  "explanation": "string"
+}`;
 
     try {
         const rawOutput = await executeGeminiRequest(prompt, apiKey);
         const result = JSON.parse(rawOutput);
 
         const oldAnswers = q.correctAnswers || [];
-        
         let rawNewAnswers = result.correctAnswers || [];
         const maxIdx = (q.options || []).length - 1;
         const newAnswers = rawNewAnswers.filter(val => val >= 0 && val <= maxIdx);
@@ -629,7 +674,6 @@ async function fetchGeminiAnswer() {
         
         renderQ();
         
-        // Auto-show explanation after AI answers
         const expText = document.getElementById('explanationText');
         const toggleBtn = document.getElementById('toggleExplanationBtn');
         const toggleBtnSpan = document.querySelector('#toggleExplanationBtn span');
@@ -641,6 +685,7 @@ async function fetchGeminiAnswer() {
     } catch (err) {
         console.error("AI Error:", err);
         alert(`Failed to reach AI: ${err.message}`);
+        warningEl.style.display = "";
         warningEl.style.background = "";
         warningEl.style.color = "";
         warningEl.style.borderColor = "";
