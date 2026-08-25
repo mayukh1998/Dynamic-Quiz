@@ -696,25 +696,26 @@ function decodeHTMLEntities(text) {
 }
 
 function fallbackCopy(text, onSuccess, onError) {
-    const el = document.createElement('textarea');
-    el.value = text;
+    // Use a standard div instead of a textarea to bypass iOS Safari's "Link/URI" clipboard bug
+    const el = document.createElement('div');
+    el.textContent = text;
     
-    // Prevent zooming and keep out of viewport
-    el.setAttribute('readonly', '');
-    el.style.position = 'absolute';
+    // Preserve formatting and line breaks
+    el.style.whiteSpace = 'pre-wrap';
+    
+    // Keep it hidden and out of the viewport
+    el.style.position = 'fixed';
     el.style.left = '-9999px';
     el.style.top = '0';
     
     document.body.appendChild(el);
     
-    // Save existing user selection if there is one
-    const selected = document.getSelection().rangeCount > 0
-        ? document.getSelection().getRangeAt(0)
-        : false;
-            
-    // Select the text cleanly for both iOS and Android/PC
-    el.select();
-    el.setSelectionRange(0, 999999); 
+    // Programmatically highlight the text like a user would with their finger
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    selection.removeAllRanges();
+    selection.addRange(range);
     
     try {
         const successful = document.execCommand('copy');
@@ -727,13 +728,9 @@ function fallbackCopy(text, onSuccess, onError) {
         if (onError) onError(err);
     }
     
+    // Cleanup the DOM and selection
+    selection.removeAllRanges();
     document.body.removeChild(el);
-    
-    // Restore original selection
-    if (selected) {
-        document.getSelection().removeAllRanges();
-        document.getSelection().addRange(selected);
-    }
 }
 
 function copyToClipboard(text, onSuccess, onError) {
