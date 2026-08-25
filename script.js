@@ -8,6 +8,28 @@ let tempEditAnswers = [];
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Structured-output schemas: passed as generationConfig.response_schema so Gemini is
+// constrained to return exactly this shape, instead of merely being *asked* to via the prompt.
+const SINGLE_ANSWER_SCHEMA = {
+    type: "OBJECT",
+    properties: {
+        correctAnswers: { type: "ARRAY", items: { type: "INTEGER" } },
+        explanation: { type: "STRING" }
+    },
+    required: ["correctAnswers", "explanation"]
+};
+const batchAnswerSchema = (batchLength) => ({
+    type: "ARRAY",
+    minItems: batchLength,
+    maxItems: batchLength,
+    items: SINGLE_ANSWER_SCHEMA
+});
+const NOTES_SCHEMA = {
+    type: "OBJECT",
+    properties: { notes: { type: "STRING" } },
+    required: ["notes"]
+};
+
 // SVG Icons for the Theme Toggle
 const sunSvg = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>`;
 const moonSvg = `<svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>`;
@@ -258,11 +280,12 @@ async function syncStateToDrive() {
     const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes };
 
     try {
-        await fetch(appsScriptUrl, {
+        const response = await fetch(appsScriptUrl, {
             method: 'POST',
             body: JSON.stringify(payload),
             headers: { 'Content-Type': 'text/plain;charset=utf-8' } 
         });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         updateSyncStatus('success');
     } catch (e) {
         console.error("Sync failed", e);
@@ -282,37 +305,38 @@ function formatIndicesToLetters(indicesArray) {
     return indicesArray.length > 1 ? `Options ${letters}` : `Option ${letters}`;
 }
 
-async function executeGeminiRequest(prompt, apiKey) {
+async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
     let model = 'gemini-3.6-flash';
     
     // Dynamically update the UI if the progress modal is open
     const modelDisplay = document.getElementById('progressModelText');
     if (modelDisplay) modelDisplay.innerText = `Model: ${model}`;
 
-    let response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { response_mime_type: "application/json" },
-            temperature: 0.0 // Locks deterministic, highest-accuracy reasoning
-        })
+    const buildBody = () => ({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+            response_mime_type: "application/json",
+            ...(responseSchema ? { response_schema: responseSchema } : {}),
+            temperature: 0.0, // Locks deterministic, highest-accuracy reasoning (must live INSIDE generationConfig)
+            maxOutputTokens: maxOutputTokens
+        }
     });
 
-    if (response.status === 459 || !response.ok) {
+    const callModel = (m) => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify(buildBody())
+    });
+
+    let response = await callModel(model);
+
+    if (response.status === 429 || !response.ok) {
         model = 'gemini-3-flash-preview';
         
         // Instantly update the UI to show that a fallback model is being used
         if (modelDisplay) modelDisplay.innerText = `Model: ${model} (Fallback)`;
         
-        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { response_mime_type: "application/json" }
-            })
-        });
+        response = await callModel(model);
     }
 
     if (!response.ok) {
@@ -321,7 +345,17 @@ async function executeGeminiRequest(prompt, apiKey) {
     }
     
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
+    const candidate = data.candidates && data.candidates[0];
+    const text = candidate?.content?.parts?.[0]?.text;
+
+    if (!text) {
+        // Common causes: safety filters blocked the response, or it was cut off before finishing.
+        const reason = candidate?.finishReason || data.promptFeedback?.blockReason;
+        if (reason === 'MAX_TOKENS') throw new Error("AI response was cut off (ran out of output tokens). Try a smaller batch size.");
+        if (reason) throw new Error(`AI returned no usable content (reason: ${reason}).`);
+        throw new Error("AI returned an empty response.");
+    }
+    return text;
 }
 
 async function handleNotesGeneration(force = false) {
@@ -354,7 +388,7 @@ async function handleNotesGeneration(force = false) {
     regenBtn.disabled = true;
 
     try {
-        const rawOutput = await executeGeminiRequest(prompt, apiKey);
+        const rawOutput = await executeGeminiRequest(prompt, apiKey, NOTES_SCHEMA, 8192);
         const result = JSON.parse(rawOutput);
 
         if (result && result.notes) {
@@ -457,7 +491,7 @@ Instructions:
         while (!success) {
             try {
                 errorText.innerText = "";
-                const rawOutput = await executeGeminiRequest(prompt, apiKey);
+                const rawOutput = await executeGeminiRequest(prompt, apiKey, batchAnswerSchema(batch.length), 16384);
                 const results = JSON.parse(rawOutput);
 
                 if (!Array.isArray(results) || results.length !== batch.length) {
@@ -624,7 +658,11 @@ async function fetchGeminiAnswer() {
     warningEl.style.borderColor = "var(--purple)";
     warningEl.classList.remove('hidden');
 
-    const cleanQuestion = decodeHTMLEntities(q.question).replace(/^[^a-zA-Z0-9]+/, '').trim();
+    // NOTE: previously this stripped any leading non-alphanumeric characters from the question
+    // (e.g. via .replace(/^[^a-zA-Z0-9]+/, '')). That silently mangled questions that legitimately
+    // start with symbols, quotes, code fences, or markdown (`` ` ``, `{`, `<`, `"`, `-`, etc.),
+    // handing the AI a corrupted question and producing a wrong-looking answer. Just decode + trim.
+    const cleanQuestion = decodeHTMLEntities(q.question).trim();
     const optionsString = q.options.map((opt, i) => `[Index ${i}]: ${decodeHTMLEntities(opt)}`).join('\n');
     
     const prompt = `You are an expert technical exam evaluator. 
@@ -645,7 +683,7 @@ Instructions:
 }`;
 
     try {
-        const rawOutput = await executeGeminiRequest(prompt, apiKey);
+        const rawOutput = await executeGeminiRequest(prompt, apiKey, SINGLE_ANSWER_SCHEMA);
         const result = JSON.parse(rawOutput);
 
         const oldAnswers = q.correctAnswers || [];
@@ -656,6 +694,7 @@ Instructions:
         const isSame = newAnswers.length === oldAnswers.length && newAnswers.every(val => oldAnswers.includes(val));
 
         let dataUpdated = false;
+        let applyExplanation = true; // becomes false only if the user declines a proposed answer change
         if (!isSame) {
             const formattedNew = formatIndicesToLetters(newAnswers);
             const formattedOld = formatIndicesToLetters(oldAnswers);
@@ -667,9 +706,16 @@ Instructions:
                     q.status = isUserCorrect ? 'correct' : 'incorrect';
                 }
                 dataUpdated = true;
+            } else {
+                // The AI's explanation justifies the answer it suggested, not the one you kept.
+                // Applying it here would leave a mismatched explanation next to your existing answer.
+                applyExplanation = false;
             }
         }
-        q.explanation = result.explanation;
+        if (applyExplanation && q.explanation !== result.explanation) {
+            q.explanation = result.explanation;
+            dataUpdated = true;
+        }
         if (dataUpdated) syncStateToDrive(); else saveState();
         
         renderQ();
