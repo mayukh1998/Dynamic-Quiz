@@ -2,12 +2,11 @@ let quizData = [];
 let curIdx = 0;
 let isEditingQuestion = false;
 let appsScriptUrl = "";
-let globalNotes = null;
 let tempEditOptions = [];
 let tempEditAnswers = [];
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
+g
 const SINGLE_ANSWER_SCHEMA = {
     type: "OBJECT",
     properties: {
@@ -672,7 +671,7 @@ async function checkAllWithGemini() {
     const modelDisplay = document.getElementById('progressModelText');
     
     document.getElementById('progressTitle').innerText = "Syncing...";
-    document.getElementById('progressDesc').innerText = "Processing sequentially in batches. Please do not close the page.";
+    document.getElementById('progressDesc').innerText = "Processing sequentially in batches. This may take approximately 15–20 minutes. Please keep this page open until the process is complete.;
     bar.classList.remove('pulsing');
 
     overlay.classList.remove('hidden');
