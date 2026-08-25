@@ -152,7 +152,6 @@ body {
 .sidebar-header { margin: 0 0 20px 0; font-size: 1.1em; display: flex; justify-content: space-between; }
 .nav-grid { 
     display: grid; 
-    /* This automatically fits as many 45px wide buttons as possible into one row */
     grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); 
     gap: 12px;
 }
@@ -298,10 +297,14 @@ body {
 .bottom-actions button:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.1); box-shadow: var(--shadow-hover); }
 .bottom-actions button:active:not(:disabled) { transform: scale(0.97); box-shadow: var(--shadow); }
 .btn-secondary { background: var(--border); color: var(--text); }
+
+/* ========================================================
+   WARNING BANNER (FORCED FULL WIDTH)
+   ======================================================== */
 .warning-banner { 
-    width: 100%;
-    box-sizing: border-box;
-    display: flex;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
     justify-content: space-between;
     align-items: center;
     padding: 14px 18px; 
