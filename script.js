@@ -442,6 +442,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
                 signal: globalAbortController ? globalAbortController.signal : undefined
             });
         } catch (err) {
+	    console.log('Error - ',err);
             if (err.name === 'AbortError') throw err;
             return { ok: false, status: 0, networkError: "Network connection failed or timed out." };
         }
@@ -512,6 +513,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
             if (response.ok && errorDisplay) errorDisplay.innerText = "";
             
         } else {
+            console.log('Response - '+JSON.stringify(response);
             throw new Error(errorMessage);
         }
     }
