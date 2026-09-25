@@ -87,6 +87,10 @@ body {
     gap: 20px;
     width: 320px;
     flex-shrink: 0;
+    /* Fix 1: Make it stick to the viewport height */
+    position: sticky;
+    top: 20px;
+    height: calc(100vh - 40px);
 }
 .right-column {
     display: flex;
@@ -148,13 +152,26 @@ body {
 .icon-btn:hover { color: var(--text); background: var(--border); }
 .icon-btn:active { transform: scale(0.9); }
 
-.sidebar-card { padding: 25px; }
+.sidebar-card { 
+    padding: 25px; 
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
 .sidebar-header { margin: 0 0 20px 0; font-size: 1.1em; display: flex; justify-content: space-between; }
 .nav-grid { 
     display: grid; 
     grid-template-columns: repeat(auto-fill, minmax(45px, 1fr)); 
     gap: 12px;
+    /* Fix 1: Make grid container scrollable */
+    overflow-y: auto;
+    flex: 1;
+    align-content: start;
+    padding-right: 5px;
 }
+.nav-grid::-webkit-scrollbar { width: 6px; }
+.nav-grid::-webkit-scrollbar-thumb { background-color: var(--secondary); border-radius: 4px; }
 .nav-btn { 
     width: 100%; aspect-ratio: 1; border: none; 
     background: var(--tile-unanswered); border-radius: var(--radius-md); 
@@ -210,7 +227,18 @@ body {
 }
 .meta-left { font-size: 0.95em; color: var(--secondary); font-weight: 500; }
 .meta-right { display: flex; gap: 10px; }
-.q-text { font-size: 1.2em; margin-bottom: 30px; font-weight: 600; line-height: 1.5; }
+.q-text { 
+    font-size: 1.2em; 
+    margin-bottom: 30px; 
+    font-weight: 600; 
+    line-height: 1.5; 
+    
+    /* NEW: Greyish container styles */
+    background: rgba(100, 116, 139, 0.08); /* Subtle grey that adapts to both light/dark themes */
+    padding: 24px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+}
 
 .options-container { display: flex; flex-direction: column; gap: 14px; }
 .option-label { 
@@ -390,14 +418,23 @@ input:focus, textarea:focus {
 @media (max-width: 768px) {
     body { padding: 12px; }
     .app-wrapper { flex-direction: column; align-items: stretch; width: 100%; gap: 16px; }
-    .left-column, .right-column { display: contents; }
+    
+    /* Reset desktop constraints */
+    .left-column { position: static; height: auto; display: contents; }
+    .right-column { display: contents; }
+    
     .card { width: 100%; box-sizing: border-box; }
     .status-card { order: 1; padding: 16px 20px; }
     .actions-card { order: 2; padding: 16px; }
-    .sidebar-card { order: 3; padding: 20px; }
+    .sidebar-card { order: 3; padding: 20px; flex: none; min-height: auto; }
     .quiz-card { order: 4; padding: 20px; }
     .actions-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
     .grid-btn { padding: 12px 10px; font-size: 0.9em; }
+    
+    /* Fix 3: Smaller, more elegant typography for mobile */
+    .q-text { font-size: 0.9em; font-weight: 50; margin-bottom: 20px; padding: 16px;}
+    .option-label { font-size: 0.95em; padding: 14px 16px; }
+    
     .nav-grid { width: 100%; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 10px; max-height: 240px; overflow-y: auto; padding-right: 6px; align-content: start; }
     .nav-grid::-webkit-scrollbar { width: 5px; }
     .nav-grid::-webkit-scrollbar-thumb { background-color: var(--secondary); border-radius: 4px; }

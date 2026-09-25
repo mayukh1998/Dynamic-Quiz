@@ -3,10 +3,10 @@ let curIdx = 0;
 let isEditingQuestion = false;
 let appsScriptUrl = "";
 let globalNotes = null;
-let globalLastReview = null; // NEW: Stores the history of the last AI batch check
+let globalLastReview = null;
 let tempEditOptions = [];
 let tempEditAnswers = [];
-let globalAbortController = null; // NEW: Global controller for cancelling APIs
+let globalAbortController = null;
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cancelApiSettingsBtn').addEventListener('click', closeApiSettingsModal);
 
     document.getElementById('checkAllBtn').addEventListener('click', checkAllWithGemini);
-    document.getElementById('recheckAllBtn').addEventListener('click', forceRecheckAll); // NEW
+    document.getElementById('recheckAllBtn').addEventListener('click', forceRecheckAll);
     
     document.getElementById('notesBtn').addEventListener('click', () => handleNotesGeneration(false));
     document.getElementById('regenerateNotesBtn').addEventListener('click', () => handleNotesGeneration(true));
@@ -81,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('fixJsonBtn').addEventListener('click', startEditQuestion);
     document.getElementById('saveDataBtn').addEventListener('click', saveEditedData);
     document.getElementById('cancelEditBtn').addEventListener('click', () => { isEditingQuestion = false; renderQ(); });
+    document.getElementById('deleteQBtn')?.addEventListener('click', deleteQuestion);
     document.getElementById('addOptionBtn').addEventListener('click', () => { tempEditOptions.push(""); renderEditOptionsUI(); });
 
     document.getElementById('geminiHelpBtn').addEventListener('click', fetchGeminiAnswer);
@@ -93,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorDisplay.style.color = "var(--orange)";
                 errorDisplay.innerText = "Cancelling...";
             }
-            globalAbortController.abort(); // Immediately kills the fetch and trips the abort signal
+            globalAbortController.abort();
         }
     });
 
@@ -182,7 +183,7 @@ async function unlinkDrive() {
     localStorage.removeItem('quizDataFull');
     localStorage.removeItem('quizProgress');
     localStorage.removeItem('quizNotes'); 
-    localStorage.removeItem('quizLastReview'); // Clear review cache
+    localStorage.removeItem('quizLastReview'); 
     localStorage.removeItem('checkAllProgress');
     globalLastReview = null;
     location.reload();
@@ -289,7 +290,7 @@ async function initiateLoad(isManual) {
             quizData = JSON.parse(cachedData);
             curIdx = parseInt(localStorage.getItem('quizProgress')) || 0;
             globalNotes = localStorage.getItem('quizNotes') || null;
-            globalLastReview = JSON.parse(localStorage.getItem('quizLastReview')) || null; // NEW
+            globalLastReview = JSON.parse(localStorage.getItem('quizLastReview')) || null;
             
             const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes, lastReview: globalLastReview };
             
@@ -332,7 +333,7 @@ async function initiateLoad(isManual) {
                 loadedQuizData = data.quizData;
                 loadedIdx = data.curIdx || 0;
                 globalNotes = data.quizNotes || null; 
-                globalLastReview = data.lastReview || null; // NEW
+                globalLastReview = data.lastReview || null;
             }
 
             await delay(600);
@@ -379,7 +380,6 @@ async function syncStateToDrive() {
     updateSyncStatus('saving');
     saveState();
     
-    // Now pushes the globalLastReview back into the cloud object
     const payload = { curIdx: curIdx, quizData: quizData, quizNotes: globalNotes, lastReview: globalLastReview };
 
     try {
@@ -400,7 +400,7 @@ function saveState() {
     localStorage.setItem('quizDataFull', JSON.stringify(quizData));
     localStorage.setItem('quizProgress', curIdx);
     localStorage.setItem('quizNotes', globalNotes || "");
-    localStorage.setItem('quizLastReview', JSON.stringify(globalLastReview)); // NEW
+    localStorage.setItem('quizLastReview', JSON.stringify(globalLastReview));
 }
 
 function formatIndicesToLetters(indicesArray) {
@@ -439,10 +439,10 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
                 body: JSON.stringify(buildBody()),
-                signal: globalAbortController ? globalAbortController.signal : undefined // Assigns abort signal
+                signal: globalAbortController ? globalAbortController.signal : undefined
             });
         } catch (err) {
-            if (err.name === 'AbortError') throw err; // Throws immediately to break the code chain
+            if (err.name === 'AbortError') throw err;
             return { ok: false, status: 0, networkError: "Network connection failed or timed out." };
         }
     };
@@ -534,18 +534,16 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
     return text;
 }
 
-// --- BATCH CHECK LOGIC SPLIT FOR REVIEW MODAL SUPPORT ---
+// --- BATCH CHECK LOGIC ---
 async function checkAllWithGemini() {
     let savedProgress = parseInt(localStorage.getItem('checkAllProgress')) || 0;
     if (savedProgress >= quizData.length) savedProgress = 0;
 
-    // SCENARIO: Check All was previously completed and data exists. Pop up the Review modal instantly.
     if (savedProgress === 0 && globalLastReview !== null) {
         showReviewModal(globalLastReview);
         return;
     }
 
-    // SCENARIO: A check is in-progress, OR it's the very first time clicking
     let confirmMsg = "Are you sure you want to proceed? This will check ALL questions in batches. It may take some time depending on quiz length.";
     let title = "Check All Questions";
     let btn = "Start Check";
@@ -590,7 +588,6 @@ async function startBatchCheck(startIndex) {
     document.getElementById('progressDesc').innerText = "Processing sequentially in batches. This may take approximately 15–20 minutes. Please keep this page open until the process is complete.";
     bar.classList.remove('pulsing');
 
-    // NEW: Initialize controller for this process
     globalAbortController = new AbortController();
 
     overlay.classList.remove('hidden');
@@ -680,12 +677,11 @@ Instructions:
                 });
                 success = true; 
             } catch (err) {
-                // If Cancel Request was pressed, cleanup and abort completely
                 if (err.name === 'AbortError') {
                     overlay.classList.add('hidden');
                     modal.classList.add('hidden');
                     renderQ();
-                    renderSidebar();
+                    renderSidebar(true);
                     return; 
                 }
 
@@ -695,7 +691,7 @@ Instructions:
                         overlay.classList.add('hidden');
                         modal.classList.add('hidden');
                         renderQ();
-                        renderSidebar();
+                        renderSidebar(true);
                         return;
                     }
                     errorText.style.color = "var(--red)";
@@ -725,7 +721,7 @@ Instructions:
                     overlay.classList.add('hidden');
                     modal.classList.add('hidden');
                     renderQ();
-                    renderSidebar();
+                    renderSidebar(true);
                     return;
                 }
                 errorText.style.color = "var(--yellow)";
@@ -742,7 +738,7 @@ Instructions:
     modal.classList.add('hidden');
     
     renderQ();
-    renderSidebar();
+    renderSidebar(true);
     
     saveState();
     await syncStateToDrive();
@@ -841,7 +837,6 @@ async function fetchGeminiAnswer() {
     let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
     modelDisplay.innerText = `Model: ${displayModel}`;
 
-    // NEW: Initialize controller
     globalAbortController = new AbortController();
 
     overlay.classList.remove('hidden');
@@ -923,7 +918,7 @@ Instructions:
         if (toggleBtnSpan) toggleBtnSpan.innerText = "Hide Explanation";
 
     } catch (err) {
-        if (err.name === 'AbortError') return; // Cancelled silently via UI button
+        if (err.name === 'AbortError') return; 
 
         console.error("AI Error:", err);
         bar.classList.remove('pulsing');
@@ -951,29 +946,39 @@ async function handleNotesGeneration(force = false) {
         return;
     }
 
-    const explanations = quizData.map(q => q.explanation).filter(exp => exp && exp.trim() !== "");
-    if (explanations.length === 0) {
-        await customAlert("No explanations found. Please generate explanations using AI Agent first.", "Cannot Generate Notes");
+    // Compile Questions, Correct Answers, and Explanations for the AI
+    const cheatSheetData = quizData.map(q => {
+        if (!q.explanation || q.explanation.trim() === "") return null;
+        
+        const correctOpts = (q.correctAnswers || []).map(idx => q.options[idx]).join(" AND ");
+        return `Q: ${q.question}\nCorrect Answer: ${correctOpts}\nContext: ${q.explanation}`;
+    }).filter(item => item !== null);
+
+    if (cheatSheetData.length === 0) {
+        await customAlert("No explanations found. Please generate explanations using AI Agent first to build notes.", "Cannot Generate Notes");
         return;
     }
 
-    const combinedExplanations = explanations.join("\n\n");
-    const prompt = `You are an expert exam prep assistant. Combine the following quiz explanations and synthesize them into a highly organized, beautifully formatted study guide. 
+    const combinedData = cheatSheetData.join("\n\n");
+    
+    const prompt = `You are an expert exam prep assistant. Review the following questions, correct answers, and contexts. 
+Create an ultra-minimal, high-yield cheat sheet designed for rapid review.
 
 FORMATTING & CONTENT RULES:
-1. Use clear Markdown Headings (### Topic Name) to group similar concepts logically.
-2. Use bullet points (-) for key facts under each heading.
-3. Bold (**text**) the most critical terms, tool names, or formulas.
-4. CRITICAL FILTER: Extract ONLY the facts related to the correct answers and core concepts. Completely ignore any text discussing why alternative options or distractors are incorrect. The study guide must only contain true facts and correct workflows.
-5. Keep explanations incredibly concise and punchy. No fluff.
+1. Extract ONLY the absolute core facts, formulas, or rules needed to identify the correct answers.
+2. Be extremely brief and precise. Use sentence fragments, abbreviations, and bullet points (-).
+3. Do NOT repeat the questions. Condense the underlying knowledge into direct factual statements.
+4. Group related facts under clear, broad Markdown Headings (### Topic).
+5. Bold (**text**) the most critical keywords, triggers, or specific tool names.
+6. Omit all conversational fluff, intro text, and reasons why incorrect options are wrong. The goal is the absolute minimum word count required to pass.
 
 Return strictly a valid JSON object matching this schema:
 {
 "notes": "string (your formatted markdown string containing headers, bullets, and bold text)"
 }
 
-Explanations:
-${combinedExplanations}`;
+Data to condense:
+${combinedData}`;
 
     const notesBtn = document.getElementById('notesBtn');
     const regenBtn = document.getElementById('regenerateNotesBtn');
@@ -994,8 +999,8 @@ ${combinedExplanations}`;
     const errorText = document.getElementById('progressErrorText');
     const modelDisplay = document.getElementById('progressModelText');
 
-    title.innerText = "✨ Generating Study Notes...";
-    desc.innerText = "AI Agent is synthesizing all explanations into a formatted markdown guide.";
+    title.innerText = "✨ Generating Cheat Sheet...";
+    desc.innerText = "AI Agent is condensing your quiz into ultra-minimal, high-yield notes.";
     bar.style.width = '100%';
     bar.classList.add('pulsing');
     text.innerText = "Compiling Notes";
@@ -1101,7 +1106,7 @@ function startApp() {
     document.getElementById('configScreen').classList.add('hidden');
     document.getElementById('jsonInputScreen').classList.add('hidden');
     document.getElementById('quizApp').classList.remove('hidden');
-    renderSidebar(); renderQ();
+    renderSidebar(true); renderQ();
 }
 
 async function restartQuiz() {
@@ -1109,7 +1114,8 @@ async function restartQuiz() {
     if(!confirmed) return;
     quizData.forEach(q => { q.userAnswer = null; q.status = null; });
     curIdx = 0; isEditingQuestion = false;
-    syncStateToDrive(); renderSidebar(); renderQ();
+    syncStateToDrive(); renderSidebar(true); renderQ();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function decodeHTMLEntities(text) {
@@ -1193,10 +1199,11 @@ async function goToQuestion(index) {
         if(!confirmed) return;
         isEditingQuestion = false;
     }
-    curIdx = index; syncStateToDrive(); renderSidebar(); renderQ();
+    curIdx = index; syncStateToDrive(); renderSidebar(true); renderQ();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function renderSidebar() {
+function renderSidebar(scrollToActive = false) {
     const navGrid = document.getElementById('navGrid');
     navGrid.innerHTML = '';
     
@@ -1214,10 +1221,34 @@ function renderSidebar() {
         navGrid.appendChild(btn);
     });
 
-    setTimeout(() => {
-        const activeBtn = navGrid.querySelector('.nav-btn.active');
-        if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 50);
+    if (scrollToActive) {
+        setTimeout(() => {
+            const activeBtn = navGrid.querySelector('.nav-btn.active');
+            if (activeBtn) {
+                const offset = activeBtn.offsetTop - navGrid.offsetTop - (navGrid.clientHeight / 2) + (activeBtn.clientHeight / 2);
+                navGrid.scrollTo({ top: offset, behavior: 'smooth' });
+            }
+        }, 50);
+    }
+}
+
+async function deleteQuestion() {
+    const confirmed = await customConfirm("Are you sure you want to delete this question?", "Delete Question", "Yes", "btn-red");
+    if (!confirmed) return;
+    
+    quizData.splice(curIdx, 1);
+    isEditingQuestion = false;
+    
+    if (quizData.length === 0) {
+        await customAlert("All questions deleted. Returning to start.", "Empty Quiz");
+        unlinkDrive(); 
+        return;
+    }
+    
+    if (curIdx >= quizData.length) curIdx = quizData.length - 1;
+    syncStateToDrive();
+    renderSidebar(true);
+    renderQ();
 }
 
 function startEditQuestion() {
@@ -1265,7 +1296,7 @@ async function saveEditedData() {
     if (q.options.length === 0) { await customAlert("Please add at least one option.", "Missing Options"); return; }
 
     q.userAnswer = null; q.status = null; isEditingQuestion = false;
-    syncStateToDrive(); renderQ(); renderSidebar();
+    syncStateToDrive(); renderQ(); renderSidebar(false);
 }
 
 function renderQ() {
@@ -1284,6 +1315,7 @@ function renderQ() {
     const editFormContainer = document.getElementById('editFormContainer');
     const warningEl = document.getElementById('missingAnswerWarning');
     const explanationContainer = document.getElementById('explanationContainer');
+    const deleteQBtn = document.getElementById('deleteQBtn');
 
     warningEl.style.background = "";
     warningEl.style.color = "";
@@ -1367,23 +1399,28 @@ function renderQ() {
     if (isEditingQuestion) {
         submitBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); markBtn.classList.add('hidden');
         fixJsonBtn.classList.add('hidden'); saveDataBtn.classList.remove('hidden'); cancelEditBtn.classList.remove('hidden');
+        cancelEditBtn.className = 'btn-secondary'; 
+        if (deleteQBtn) deleteQBtn.classList.remove('hidden');
     } else if (hasMissingAnswer || hasMissingOptions) {
         submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden'); markBtn.classList.remove('hidden');
         saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
+        if (deleteQBtn) deleteQBtn.classList.add('hidden');
         nextBtn.innerHTML = 'Skip Question';
     } else if (q.status !== null) { 
         submitBtn.classList.add('hidden'); fixJsonBtn.classList.remove('hidden'); nextBtn.classList.remove('hidden'); markBtn.classList.remove('hidden');
         saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
+        if (deleteQBtn) deleteQBtn.classList.add('hidden');
         nextBtn.innerHTML = (curIdx === quizData.length - 1) ? 'Finish Quiz' : '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M5 12h14M12 5l7 7-7 7"/></svg> Next Question';
     } else {
         submitBtn.classList.remove('hidden'); fixJsonBtn.classList.add('hidden'); nextBtn.classList.add('hidden'); markBtn.classList.remove('hidden');
         saveDataBtn.classList.add('hidden'); cancelEditBtn.classList.add('hidden');
+        if (deleteQBtn) deleteQBtn.classList.add('hidden');
     }
 }
 
 function toggleMark() {
     quizData[curIdx].marked = !quizData[curIdx].marked;
-    syncStateToDrive(); renderQ(); renderSidebar(); 
+    syncStateToDrive(); renderQ(); renderSidebar(false); 
 }
 
 async function submitAnswer() {
@@ -1396,7 +1433,7 @@ async function submitAnswer() {
     const isCorrect = selected.length === q.correctAnswers.length && selected.every(val => q.correctAnswers.includes(val));
     q.userAnswer = selected; q.status = isCorrect ? 'correct' : 'incorrect';
     
-    syncStateToDrive(); renderQ(); renderSidebar();
+    syncStateToDrive(); renderQ(); renderSidebar(false);
 }
 
 async function nextQuestion() {
