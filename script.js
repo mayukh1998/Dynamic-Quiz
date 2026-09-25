@@ -513,7 +513,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
             if (response.ok && errorDisplay) errorDisplay.innerText = "";
             
         } else {
-            console.log('Response - '+JSON.stringify(response);
+            console.log('Response - '+JSON.stringify(response));
             throw new Error(errorMessage);
         }
     }
