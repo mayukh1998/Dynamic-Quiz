@@ -1047,19 +1047,30 @@ ${combinedData}`;
     }
 }
 
+
 function renderNotesModal(notesText) {
     let html = notesText;
+    
+    html = html.replace(/\\n/g, '\n');
+    html = html.replace(/\\r/g, '');
+
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text);">$1</strong>');
+    
     html = html.replace(/^###\s+(.*$)/gim, '<h3 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h3>');
     html = html.replace(/^##\s+(.*$)/gim, '<h2 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h2>');
     html = html.replace(/^#\s+(.*$)/gim, '<h1 style="color: var(--indigo); border-bottom: 1px solid var(--border); padding-bottom: 8px; margin: 24px 0 12px 0;">$1</h1>');
-    html = html.replace(/^[ \t]*[-*]\s+(.*)$/gim, '<li style="margin-bottom: 8px; line-height: 1.6;">$1</li>');
-    html = html.replace(/(<li.*?>.*?<\/li>\s*)+/gim, '<ul style="padding-left: 24px; margin: 12px 0;">$&</ul>');
+    
+    html = html.replace(/^[ \t]*[-*]\s+(.*)$/gim, '<li style="margin-bottom: 10px; line-height: 1.6; color: var(--text-muted);">$1</li>');
+    html = html.replace(/(<li.*?>.*?<\/li>\s*)+/gim, '<ul style="padding-left: 20px; margin: 12px 0;">$&</ul>');
+    
     html = html.replace(/\n\n/g, '<br><br>');
 
     const contentDiv = document.getElementById('notesContent');
     contentDiv.innerHTML = html;
+    
     contentDiv.style.whiteSpace = 'normal'; 
+    contentDiv.style.color = 'var(--text-muted)';
+    contentDiv.style.fontSize = '0.95em';
     
     document.getElementById('notesOverlay').classList.remove('hidden');
     document.getElementById('notesModal').classList.remove('hidden');
