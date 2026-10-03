@@ -18,12 +18,22 @@ const SINGLE_ANSWER_SCHEMA = {
     },
     required: ["correctAnswers", "explanation"]
 };
-const batchAnswerSchema = (batchLength) => ({
+
+const BATCH_ANSWER_SCHEMA = (batchLength) => ({
     type: "ARRAY",
     minItems: batchLength,
     maxItems: batchLength,
-    items: SINGLE_ANSWER_SCHEMA
+    items: {
+        type: "OBJECT",
+        properties: {
+            id: { type: "INTEGER" },
+            correctAnswers: { type: "ARRAY", items: { type: "INTEGER" } },
+            explanation: { type: "STRING" }
+        },
+        required: ["id", "correctAnswers", "explanation"]
+    }
 });
+
 const NOTES_SCHEMA = {
     type: "OBJECT",
     properties: { notes: { type: "STRING" } },
@@ -608,7 +618,7 @@ async function startBatchCheck(startIndex) {
     await delay(300); 
 
     let dataUpdated = false;
-    const batchSize = 20;
+    const batchSize = 10;
 
     if (startIndex === 0) {
         globalLastReview = [];
@@ -619,8 +629,9 @@ async function startBatchCheck(startIndex) {
     for (let i = startIndex; i < total; i += batchSize) {
         const batch = quizData.slice(i, i + batchSize);
         const batchPrompt = batch.map((q, idx) => {
-            const optionsString = (q.options || []).length > 0 ? q.options.map((opt, oIdx) => `[Index ${oIdx}]: ${opt}`).join('\n') : "No options provided.";
-            return `Question ID: ${i + idx}\nQuestion: ${q.question}\nOptions:\n${optionsString}`;
+            const cleanQuestion = decodeHTMLEntities(q.question).trim();
+            const optionsString = (q.options || []).length > 0 ? q.options.map((opt, oIdx) => `[Index ${oIdx}]: ${decodeHTMLEntities(opt)}`).join('\n') : "No options provided.";
+            return `Question ID: ${i + idx}\nQuestion: ${cleanQuestion}\nOptions:\n${optionsString}`;
         }).join('\n\n');
 
         const prompt = `You are an expert technical exam evaluator. Given the following batch of questions, evaluate each question carefully against official documentation.
@@ -631,9 +642,10 @@ ${batchPrompt}
 Instructions:
 1. Determine the exact correct option index or indices based strictly on official documentation and best practices. If options are missing, return an empty array.
 2. Provide a concise, clear explanation (under 600 characters) stating why the chosen option is correct and briefly why the alternatives are incorrect.
-3. Return strictly a JSON array of objects matching this schema in the exact question order:
+3. Return strictly a JSON array of objects matching this schema:
 [
   {
+    "id": [insert Question ID here],
     "correctAnswers": [number],
     "explanation": "string"
   }
@@ -642,15 +654,18 @@ Instructions:
         while (!success) {
             try {
                 errorText.innerText = "";
-                const rawOutput = await executeGeminiRequest(prompt, apiKey, batchAnswerSchema(batch.length), 16384);
+                const rawOutput = await executeGeminiRequest(prompt, apiKey, BATCH_ANSWER_SCHEMA(batch.length), 16384);
                 const results = JSON.parse(rawOutput);
 
                 if (!Array.isArray(results) || results.length !== batch.length) {
                         throw new Error("AI Agent returned incorrect number of results in batch array.");
                 }
 
-                results.forEach((result, idx) => {
-                    const q = quizData[i + idx];
+                results.forEach((result) => {
+                    const qId = parseInt(result.id);
+                    const q = quizData[qId];
+                    if (!q) return;
+
                     const oldAnswers = q.correctAnswers || [];
                     
                     let rawNewAnswers = result.correctAnswers || [];
@@ -661,7 +676,7 @@ Instructions:
 
                     if (!isSame && (q.options || []).length > 0) {
                         globalLastReview.push({
-                            index: i + idx, question: q.question, options: q.options || [],
+                            index: qId, question: q.question, options: q.options || [],
                             oldAnswers: [...oldAnswers], newAnswers: [...newAnswers]
                         });
 
@@ -718,7 +733,7 @@ Instructions:
         text.innerText = `${completed} / ${total}`;
 
         if (completed < total) {
-            for (let sec = 15; sec > 0; sec--) {
+            for (let sec = 5; sec > 0; sec--) {
                 if (globalAbortController && globalAbortController.signal.aborted) {
                     overlay.classList.add('hidden');
                     modal.classList.add('hidden');
@@ -948,7 +963,6 @@ async function handleNotesGeneration(force = false) {
         return;
     }
 
-    // Compile Questions, Correct Answers, and Explanations for the AI
     const cheatSheetData = quizData.map(q => {
         if (!q.explanation || q.explanation.trim() === "") return null;
         
