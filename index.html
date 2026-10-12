@@ -94,7 +94,7 @@
                 <strong style="color: var(--indigo); display: block; margin-bottom: 6px;">Default Models:</strong>
                 • gemini-3.6-flash (Primary)<br>
                 • gemini-3.5-flash-lite (Fallback)<br><br>
-                Leave blank to use these defaults. If you enter a custom model, make sure it matches the exact API name, otherwise requests will fail.
+                Leave blank to use defaults. If your primary or custom model (e.g., gemini-3.8-flash) exceeds its quota or rate limit, requests automatically drop to the fallback model (gemini-3.5-flash-lite).
             </span>
         </span>
     </label>

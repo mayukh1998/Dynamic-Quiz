@@ -8,6 +8,7 @@ let globalLastReview = null;
 let tempEditOptions = [];
 let tempEditAnswers = [];
 let globalAbortController = null;
+let activeGeminiModel = null;
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -247,6 +248,7 @@ function closeActionsMenu() {
 async function unlinkDrive() {
     const confirmed = await customConfirm("Are you sure? This will disconnect the app from Google Drive & clear your API key.", "Unlink Services", "Disconnect", "btn-red");
     if(!confirmed) return;
+    activeGeminiModel = null;
     localStorage.removeItem('gasWebUrl');
     localStorage.removeItem('geminiApiKey');
     localStorage.removeItem('geminiModelName');
@@ -283,6 +285,8 @@ async function saveApiSettings() {
         errorEl.innerText = "⚠️ API key is required if you are specifying a custom model.";
         return;
     }
+
+    activeGeminiModel = null;
 
     if (newKey) {
         localStorage.setItem('geminiApiKey', newKey);
@@ -479,19 +483,35 @@ function formatIndicesToLetters(indicesArray) {
     return indicesArray.length > 1 ? `Options ${letters}` : `Option ${letters}`;
 }
 
+function isQuotaExceededError(status, message) {
+    if (status === 429) {
+        const msg = (message || "").toLowerCase();
+        return msg.includes("quota") || msg.includes("exceeded") || msg.includes("resource_exhausted") || msg.includes("free_tier_requests") || msg.includes("rate-limits");
+    }
+    return false;
+}
+
 async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTokens = 4096) {
-    let defaultModel = 'gemini-3.6-flash'; 
-    let fallbackModel = 'gemini-3.5-flash-lite';
+    const defaultModel = 'gemini-3.8-flash'; 
+    const fallbackModel = 'gemini-3.5-flash-lite';
+    const altFallbackModel = 'gemini-3.5-flash';
     
-    let customModel = localStorage.getItem('geminiModelName');
-    let model = customModel || defaultModel;
+    const customModel = localStorage.getItem('geminiModelName')?.trim() || '';
+    const primaryModel = customModel || defaultModel;
+    
+    // If fallback model was already activated in this session, continue using fallback
+    let currentModel = activeGeminiModel || primaryModel;
     
     const modelDisplay = document.getElementById('progressModelText');
     const errorDisplay = document.getElementById('progressErrorText');
     
-    if (modelDisplay) {
-        modelDisplay.innerText = `Model: ${model}`;
-    }
+    const updateModelDisplay = (m, isFallback = false) => {
+        if (modelDisplay) {
+            modelDisplay.innerText = isFallback ? `Model: ${m} (Fallback)` : `Model: ${m}`;
+        }
+    };
+
+    updateModelDisplay(currentModel, currentModel === fallbackModel || currentModel === altFallbackModel || !!activeGeminiModel);
 
     const buildBody = () => ({
         contents: [{ parts: [{ text: prompt }] }],
@@ -512,7 +532,7 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
                 signal: globalAbortController ? globalAbortController.signal : undefined
             });
         } catch (err) {
-	    console.log('Error - ',err);
+            console.log('Fetch Error - ', err);
             if (err.name === 'AbortError') throw err;
             return { ok: false, status: 0, networkError: "Network connection failed or timed out." };
         }
@@ -533,15 +553,36 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
         }
     };
 
-    let response = await callModel(model);
+    let response = await callModel(currentModel);
 
     if (!response.ok) {
         let errorMessage = await parseError(response);
-        console.warn(`Primary model (${model}) failed:`, response.status, errorMessage);
-        
-        if (response.status === 429 || response.status >= 500 || response.status === 0) {
-            
-            let retryWaitTime = errorMessage.toLowerCase().includes("high demand") ? 45 : 20;
+        console.warn(`Model (${currentModel}) failed:`, response.status, errorMessage);
+
+        const isQuota = isQuotaExceededError(response.status, errorMessage);
+        const isRetryable = response.status === 429 || response.status >= 500 || response.status === 0;
+
+        // If quota is exceeded on primary model, drop IMMEDIATELY to fallback model (no waiting 45s)
+        if (isQuota && currentModel !== fallbackModel && currentModel !== altFallbackModel) {
+            if (errorDisplay) {
+                errorDisplay.style.color = "var(--yellow)";
+                errorDisplay.innerText = `Quota reached for ${currentModel}. Switching to fallback model (${fallbackModel})...`;
+            }
+            activeGeminiModel = fallbackModel;
+            currentModel = fallbackModel;
+            updateModelDisplay(currentModel, true);
+            await delay(1200);
+
+            response = await callModel(currentModel);
+            if (response.status === 404) {
+                currentModel = altFallbackModel;
+                activeGeminiModel = currentModel;
+                updateModelDisplay(currentModel, true);
+                response = await callModel(currentModel);
+            }
+        } else if (isRetryable) {
+            // Transient concurrency or temporary server error: retry once
+            let retryWaitTime = errorMessage.toLowerCase().includes("high demand") ? 30 : 15;
 
             if (errorDisplay) {
                 for (let sec = retryWaitTime; sec > 0; sec--) {
@@ -549,43 +590,54 @@ async function executeGeminiRequest(prompt, apiKey, responseSchema, maxOutputTok
                         const e = new Error("Aborted"); e.name = "AbortError"; throw e;
                     }
                     errorDisplay.style.color = "var(--yellow)";
-                    errorDisplay.innerText = `High demand/Network issue. Retrying same model in ${sec}s...`;
+                    errorDisplay.innerText = `High demand/rate limit. Retrying in ${sec}s...`;
                     await delay(1000);
                 }
                 errorDisplay.innerText = "Retrying model...";
             }
 
-            response = await callModel(model);
+            response = await callModel(currentModel);
 
-            if (!response.ok) {
+            // If still failed and we haven't tried fallback yet, drop to fallback model!
+            if (!response.ok && currentModel !== fallbackModel && currentModel !== altFallbackModel) {
                 errorMessage = await parseError(response);
-                
-                if (!customModel && (response.status === 429 || response.status >= 500 || response.status === 0)) {
-                    if (errorDisplay) {
-                        for (let sec = 10; sec > 0; sec--) {
-                            if (globalAbortController && globalAbortController.signal.aborted) {
-                                const e = new Error("Aborted"); e.name = "AbortError"; throw e;
-                            }
-                            errorDisplay.style.color = "var(--orange)";
-                            errorDisplay.innerText = `Retry failed. Switching to fallback model in ${sec}s...`;
-                            await delay(1000);
-                        }
-                        errorDisplay.innerText = "Switching to fallback model...";
-                    }
+                if (errorDisplay) {
+                    errorDisplay.style.color = "var(--orange)";
+                    errorDisplay.innerText = `Primary model retry failed. Switching to fallback model (${fallbackModel})...`;
+                }
+                activeGeminiModel = fallbackModel;
+                currentModel = fallbackModel;
+                updateModelDisplay(currentModel, true);
+                await delay(1200);
 
-                    if (modelDisplay) modelDisplay.innerText = `Model: ${fallbackModel} (Fallback)`;
-                    response = await callModel(fallbackModel);
-                } else {
-                    throw new Error(errorMessage);
+                response = await callModel(currentModel);
+                if (response.status === 404) {
+                    currentModel = altFallbackModel;
+                    activeGeminiModel = currentModel;
+                    updateModelDisplay(currentModel, true);
+                    response = await callModel(currentModel);
                 }
             }
-            
-            if (response.ok && errorDisplay) errorDisplay.innerText = "";
-            
         } else {
-            console.log('Response - '+JSON.stringify(response));
-            throw new Error(errorMessage);
+            // In case customModel name has 404/error, fallback automatically
+            if (currentModel !== fallbackModel && currentModel !== altFallbackModel) {
+                console.warn(`Model ${currentModel} returned ${response.status}, attempting fallback to ${fallbackModel}`);
+                activeGeminiModel = fallbackModel;
+                currentModel = fallbackModel;
+                updateModelDisplay(currentModel, true);
+                response = await callModel(currentModel);
+                if (response.status === 404) {
+                    currentModel = altFallbackModel;
+                    activeGeminiModel = currentModel;
+                    updateModelDisplay(currentModel, true);
+                    response = await callModel(currentModel);
+                }
+            }
         }
+    }
+
+    if (response.ok && errorDisplay) {
+        errorDisplay.innerText = "";
     }
 
     if (!response.ok) {
@@ -670,8 +722,8 @@ async function startBatchCheck(startIndex) {
     text.innerText = `${completed} / ${total}`;
     errorText.innerText = "";
     
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
-    modelDisplay.innerText = `Model: ${displayModel}`;
+    let displayModel = activeGeminiModel || localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
+    modelDisplay.innerText = activeGeminiModel ? `Model: ${activeGeminiModel} (Fallback)` : `Model: ${displayModel}`;
     
     await delay(50);
     void modal.offsetWidth; 
@@ -763,6 +815,18 @@ Instructions:
                 }
 
                 console.error("Batch Check Error:", err);
+
+                // If error mentions quota or limits, switch immediately to fallback model and retry
+                const isQuota = isQuotaExceededError(429, err.message);
+                if (isQuota && activeGeminiModel !== 'gemini-3.5-flash-lite' && activeGeminiModel !== 'gemini-3.5-flash') {
+                    activeGeminiModel = 'gemini-3.5-flash-lite';
+                    modelDisplay.innerText = `Model: ${activeGeminiModel} (Fallback)`;
+                    errorText.style.color = "var(--yellow)";
+                    errorText.innerText = `Quota limit exceeded. Switched to fallback model (${activeGeminiModel}). Retrying now...`;
+                    await delay(1200);
+                    continue;
+                }
+
                 for(let sec = 60; sec > 0; sec--) {
                     if (globalAbortController && globalAbortController.signal.aborted) {
                         overlay.classList.add('hidden');
@@ -911,8 +975,8 @@ async function fetchGeminiAnswer() {
     text.innerText = "Single Verification";
     errorText.innerText = "";
     
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
-    modelDisplay.innerText = `Model: ${displayModel}`;
+    let displayModel = activeGeminiModel || localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
+    modelDisplay.innerText = activeGeminiModel ? `Model: ${activeGeminiModel} (Fallback)` : `Model: ${displayModel}`;
 
     globalAbortController = new AbortController();
 
@@ -1082,8 +1146,8 @@ ${combinedData}`;
     text.innerText = "Compiling Notes";
     errorText.innerText = "";
     
-    let displayModel = localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
-    modelDisplay.innerText = `Model: ${displayModel}`;
+    let displayModel = activeGeminiModel || localStorage.getItem('geminiModelName') || 'gemini-3.6-flash';
+    modelDisplay.innerText = activeGeminiModel ? `Model: ${activeGeminiModel} (Fallback)` : `Model: ${displayModel}`;
 
     overlay.classList.remove('hidden');
     modal.classList.remove('hidden');
