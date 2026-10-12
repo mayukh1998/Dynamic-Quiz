@@ -198,24 +198,203 @@ body {
 /* ========================================================
    RIGHT COLUMN (Action Grid & Quiz Content)
    ======================================================== */
-.actions-card { padding: 20px; }
-.actions-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-.grid-btn, .action-btn {
-    padding: 12px 15px; border: none; border-radius: var(--radius-md);
-    font-weight: 500; font-size: 0.95em; color: white; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
+/* ========================================================
+   RIGHT COLUMN (Action Toolbar & Dropdown)
+   ======================================================== */
+.actions-card, .toolbar-card { 
+    padding: 12px 18px; 
+    position: relative;
+    z-index: 20;
+}
+
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.toolbar-spacer { flex: 1; }
+
+.toolbar-btn {
+    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 0.9em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid transparent;
+    line-height: 1;
+    white-space: nowrap;
+    text-decoration: none;
+}
+.toolbar-btn svg { flex-shrink: 0; }
+
+/* Primary Plus Button */
+.toolbar-btn.btn-add {
+    background: var(--indigo);
+    color: #ffffff;
+    border-color: var(--indigo);
+}
+.toolbar-btn.btn-add:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-hover);
+}
+.toolbar-btn.btn-add:active { transform: scale(0.97); }
+
+/* Duplicates Button */
+.toolbar-btn.btn-duplicates {
+    background: var(--option-bg);
+    color: var(--text);
+    border-color: var(--border);
+}
+.toolbar-btn.btn-duplicates:hover {
+    background: var(--option-hover);
+    border-color: var(--secondary);
+    transform: translateY(-1px);
+}
+.toolbar-btn.btn-duplicates:active { transform: scale(0.97); }
+
+/* Menu Dropdown Trigger */
+.menu-dropdown-container {
+    position: relative;
+}
+
+.toolbar-btn.btn-menu {
+    background: var(--option-bg);
+    color: var(--text);
+    border-color: var(--border);
+}
+.toolbar-btn.btn-menu:hover,
+.toolbar-btn.btn-menu.open {
+    background: var(--option-hover);
+    border-color: var(--indigo);
+    color: var(--indigo);
+}
+.toolbar-btn.btn-menu .dropdown-chevron {
+    transition: transform 0.2s ease;
+}
+.toolbar-btn.btn-menu.open .dropdown-chevron {
+    transform: rotate(180deg);
+}
+
+/* Dropdown Menu Popup */
+.actions-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 250px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-hover);
+    padding: 6px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: dropdownFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.dropdown-section-title {
+    font-size: 0.72em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--secondary);
+    padding: 6px 10px 4px 10px;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+}
+
+.dropdown-item {
+    width: 100%;
+    padding: 9px 12px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.88em;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.dropdown-item svg {
+    color: var(--secondary);
+    flex-shrink: 0;
+    transition: color 0.15s ease;
+}
+.dropdown-item:hover {
+    background: var(--option-hover);
+    color: var(--indigo);
+}
+.dropdown-item:hover svg {
+    color: var(--indigo);
+}
+.dropdown-item:active { transform: scale(0.99); }
+
+.dropdown-item-danger {
+    color: var(--red);
+}
+.dropdown-item-danger svg {
+    color: var(--red);
+}
+.dropdown-item-danger:hover {
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--red);
+}
+.dropdown-item-danger:hover svg {
+    color: var(--red);
+}
+
+.action-btn { 
+    padding: 14px 24px; 
+    font-weight: 600; 
+    font-size: 16px; 
+    background: var(--indigo); 
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.action-btn { padding: 14px 24px; font-weight: 600; font-size: 16px; background: var(--indigo); display: inline-flex; }
-.grid-btn:hover, .action-btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.1); box-shadow: var(--shadow-hover); }
-.grid-btn:active, .action-btn:active:not(:disabled) { transform: scale(0.97); box-shadow: var(--shadow); }
+.action-btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.1); box-shadow: var(--shadow-hover); }
+.action-btn:active:not(:disabled) { transform: scale(0.97); box-shadow: var(--shadow); }
 .action-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
-.btn-indigo, .btn-primary { background: var(--indigo); }
-.btn-purple { background: var(--purple); }
-.btn-blue { background: var(--teal); }
-.btn-teal { background: var(--teal); } 
-.btn-green { background: var(--green); }
+.btn-indigo, .btn-primary { background: var(--indigo); color: white; }
+.btn-purple { background: var(--purple); color: white; }
+.btn-blue { background: var(--teal); color: white; }
+.btn-teal { background: var(--teal); color: white; } 
+.btn-green { background: var(--green); color: white; }
 .btn-yellow { background: var(--yellow); color: #000; }
 .btn-red { background: var(--red); color: white; }
 
@@ -413,6 +592,124 @@ input:focus, textarea:focus {
     transform: translateX(-50%) translateY(0);
 }
 
+/* Duplicates Modal Styles */
+.duplicate-group-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+    padding: 16px;
+    margin-bottom: 16px;
+}
+.duplicate-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border);
+    font-size: 0.9em;
+    font-weight: 600;
+}
+.duplicate-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.78em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+.badge-identical {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--red);
+    border: 1px solid var(--red);
+}
+.badge-partial {
+    background: rgba(234, 179, 8, 0.15);
+    color: var(--yellow);
+    border: 1px solid var(--yellow);
+}
+.badge-options {
+    background: rgba(147, 51, 234, 0.15);
+    color: var(--purple);
+    border: 1px solid var(--purple);
+}
+.duplicate-q-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-top: 10px;
+}
+.duplicate-q-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.duplicate-q-title {
+    font-weight: 700;
+    font-size: 0.95em;
+    color: var(--indigo);
+}
+.duplicate-q-text {
+    font-weight: 600;
+    font-size: 0.95em;
+    color: var(--text);
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+.duplicate-opt-list {
+    margin: 8px 0;
+    padding-left: 20px;
+    font-size: 0.88em;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+.duplicate-opt-item.is-correct {
+    color: var(--green);
+    font-weight: 600;
+}
+.duplicate-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+.btn-sm {
+    padding: 7px 13px;
+    font-size: 0.82em;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn-sm-outline {
+    background: var(--card-bg);
+    border-color: var(--border);
+    color: var(--text);
+}
+.btn-sm-outline:hover {
+    border-color: var(--indigo);
+    color: var(--indigo);
+    background: var(--option-hover);
+}
+.btn-sm-danger {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: var(--red);
+    color: var(--red);
+}
+.btn-sm-danger:hover {
+    background: var(--red);
+    color: white;
+}
+
 .hidden { display: none !important; }
 
 @media (max-width: 768px) {
@@ -425,11 +722,13 @@ input:focus, textarea:focus {
     
     .card { width: 100%; box-sizing: border-box; }
     .status-card { order: 1; padding: 16px 20px; }
-    .actions-card { order: 2; padding: 16px; }
+    .toolbar-card, .actions-card { order: 2; padding: 10px 14px; }
     .sidebar-card { order: 3; padding: 20px; flex: none; min-height: auto; }
     .quiz-card { order: 4; padding: 20px; }
-    .actions-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%; }
-    .grid-btn { padding: 12px 10px; font-size: 0.9em; }
+    
+    .toolbar-actions { gap: 8px; }
+    .toolbar-btn { padding: 8px 12px; font-size: 0.85em; gap: 6px; }
+    .actions-dropdown-menu { width: min(260px, calc(100vw - 32px)); right: 0; }
     
     /* Fix 3: Smaller, more elegant typography for mobile */
     .q-text { font-size: 0.9em; font-weight: 50; margin-bottom: 20px; padding: 16px;}
@@ -440,6 +739,14 @@ input:focus, textarea:focus {
     .nav-grid::-webkit-scrollbar-thumb { background-color: var(--secondary); border-radius: 4px; }
     .bottom-actions { flex-direction: column; gap: 10px; width: 100%; }
     .bottom-actions button { width: 100%; flex: none; }
+}
+
+@media (max-width: 480px) {
+    .toolbar-card { padding: 8px 10px; }
+    .toolbar-actions { gap: 6px; }
+    .toolbar-btn { padding: 7px 10px; font-size: 0.82em; gap: 4px; }
+    .toolbar-btn.btn-duplicates .btn-text { display: none; }
+    .toolbar-btn.btn-duplicates { padding: 7px 9px; }
 }
 
 #progressErrorText:empty { 

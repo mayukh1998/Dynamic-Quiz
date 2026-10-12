@@ -1,6 +1,7 @@
 let quizData = [];
 let curIdx = 0;
 let isEditingQuestion = false;
+let isNewQuestionDraft = false;
 let appsScriptUrl = "";
 let globalNotes = null;
 let globalLastReview = null;
@@ -63,23 +64,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if (savedApiKey) document.getElementById('geminiApiKeyInput').value = savedApiKey;
 
     document.getElementById('loadBtn').addEventListener('click', () => initiateLoad(true));
-    document.getElementById('clearCacheBtn').addEventListener('click', unlinkDrive);
-    document.getElementById('restartQuizBtn').addEventListener('click', restartQuiz);
-    document.getElementById('exportJsonBtn').addEventListener('click', exportJSON);
+    document.getElementById('clearCacheBtn').addEventListener('click', () => { closeActionsMenu(); unlinkDrive(); });
+    document.getElementById('restartQuizBtn').addEventListener('click', () => { closeActionsMenu(); restartQuiz(); });
+    document.getElementById('exportJsonBtn').addEventListener('click', () => { closeActionsMenu(); exportJSON(); });
     document.getElementById('copyQBtn').addEventListener('click', copyQuestion);
     
     document.getElementById('changeApiKeyBtn').addEventListener('click', openApiSettingsModal);
+    document.getElementById('menuApiSettingsBtn')?.addEventListener('click', () => { closeActionsMenu(); openApiSettingsModal(); });
     document.getElementById('saveApiSettingsBtn').addEventListener('click', saveApiSettings);
     document.getElementById('cancelApiSettingsBtn').addEventListener('click', closeApiSettingsModal);
 
-    document.getElementById('checkAllBtn').addEventListener('click', checkAllWithGemini);
+    // Toolbar & Menu Dropdown
+    document.getElementById('menuDropdownBtn')?.addEventListener('click', toggleActionsMenu);
+    document.getElementById('addQBtn')?.addEventListener('click', addNewQuestion);
+    document.getElementById('menuAddQBtn')?.addEventListener('click', addNewQuestion);
+    document.getElementById('addQMetaBtn')?.addEventListener('click', addNewQuestion);
+    
+    document.getElementById('checkDuplicatesBtn')?.addEventListener('click', openDuplicatesModal);
+    document.getElementById('menuCheckDuplicatesBtn')?.addEventListener('click', openDuplicatesModal);
+    document.getElementById('closeDuplicatesBtn')?.addEventListener('click', closeDuplicatesModal);
+    document.getElementById('recheckDuplicatesBtn')?.addEventListener('click', renderDuplicatesModalUI);
+
+    document.getElementById('checkAllBtn').addEventListener('click', () => { closeActionsMenu(); checkAllWithGemini(); });
     document.getElementById('recheckAllBtn').addEventListener('click', forceRecheckAll);
     
-    document.getElementById('notesBtn').addEventListener('click', () => handleNotesGeneration(false));
+    document.getElementById('notesBtn').addEventListener('click', () => { closeActionsMenu(); handleNotesGeneration(false); });
     document.getElementById('regenerateNotesBtn').addEventListener('click', () => handleNotesGeneration(true));
     document.getElementById('closeNotesBtn').addEventListener('click', closeNotesModal);
 
-    document.getElementById('reuploadBtn').addEventListener('click', showReuploadScreen);
+    document.getElementById('reuploadBtn').addEventListener('click', () => { closeActionsMenu(); showReuploadScreen(); });
     document.getElementById('saveNewJsonBtn').addEventListener('click', handleNewJsonSubmit);
     document.getElementById('cancelJsonBtn').addEventListener('click', cancelReupload);
     
@@ -90,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('editPenBtn').addEventListener('click', startEditQuestion);
     document.getElementById('fixJsonBtn').addEventListener('click', startEditQuestion);
     document.getElementById('saveDataBtn').addEventListener('click', saveEditedData);
-    document.getElementById('cancelEditBtn').addEventListener('click', () => { isEditingQuestion = false; renderQ(); });
+    document.getElementById('cancelEditBtn').addEventListener('click', cancelEditQuestion);
     document.getElementById('deleteQBtn')?.addEventListener('click', deleteQuestion);
     document.getElementById('addOptionBtn').addEventListener('click', () => { tempEditOptions.push(""); renderEditOptionsUI(); });
 
@@ -105,6 +118,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 errorDisplay.innerText = "Cancelling...";
             }
             globalAbortController.abort();
+        }
+    });
+
+    // Close actions menu on outside click or escape
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('actionsDropdownMenu');
+        const btn = document.getElementById('menuDropdownBtn');
+        if (menu && !menu.classList.contains('hidden')) {
+            if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+                closeActionsMenu();
+            }
+        }
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeActionsMenu();
+            closeDuplicatesModal();
         }
     });
 
@@ -182,6 +213,35 @@ function setTheme(isDark) {
 function toggleTheme() {
     const isDark = !document.body.classList.contains('dark-theme');
     setTheme(isDark);
+}
+
+function toggleActionsMenu(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('actionsDropdownMenu');
+    const btn = document.getElementById('menuDropdownBtn');
+    if (!menu) return;
+    const isHidden = menu.classList.contains('hidden');
+    if (isHidden) {
+        menu.classList.remove('hidden');
+        if (btn) {
+            btn.classList.add('open');
+            btn.setAttribute('aria-expanded', 'true');
+        }
+    } else {
+        closeActionsMenu();
+    }
+}
+
+function closeActionsMenu() {
+    const menu = document.getElementById('actionsDropdownMenu');
+    const btn = document.getElementById('menuDropdownBtn');
+    if (menu && !menu.classList.contains('hidden')) {
+        menu.classList.add('hidden');
+    }
+    if (btn) {
+        btn.classList.remove('open');
+        btn.setAttribute('aria-expanded', 'false');
+    }
 }
 
 async function unlinkDrive() {
@@ -1095,6 +1155,309 @@ function closeNotesModal() {
     document.getElementById('notesModal').classList.add('hidden');
 }
 
+// --- DUPLICATE QUESTIONS CHECKER ---
+function normalizeQuestionForComparison(text) {
+    if (!text) return "";
+    let s = decodeHTMLEntities(text).toLowerCase().trim();
+    s = s.replace(/^(?:question\s*\d+[\s:.-]*|q\s*\d+[\s:.-]*|\d+[\s:.-]+)/i, '').trim();
+    s = s.replace(/<[^>]*>/g, '');
+    s = s.replace(/[^\w\s]/g, '');
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
+}
+
+function normalizeOptionForComparison(text) {
+    if (!text) return "";
+    let s = decodeHTMLEntities(text).toLowerCase().trim();
+    s = s.replace(/^(?:[a-h\d][\s:.)-]+|\([a-h\d]\)[\s:.-]*)/i, '').trim();
+    s = s.replace(/<[^>]*>/g, '');
+    s = s.replace(/[^\w\s]/g, '');
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
+}
+
+function scanForDuplicates() {
+    const exactGroups = [];
+    const partialGroups = [];
+    const optionsInQuestion = [];
+    
+    const visitedExact = new Set();
+    const visitedPartial = new Set();
+
+    // 1. Scan for exact duplicate questions across quiz
+    for (let i = 0; i < quizData.length; i++) {
+        if (visitedExact.has(i)) continue;
+        const qA = quizData[i];
+        const normQA = normalizeQuestionForComparison(qA.question);
+        if (!normQA) continue;
+
+        const normOptsA = (qA.options || []).map(normalizeOptionForComparison).sort().join("|||");
+
+        const exactGroup = [i];
+
+        for (let j = i + 1; j < quizData.length; j++) {
+            if (visitedExact.has(j)) continue;
+            const qB = quizData[j];
+            const normQB = normalizeQuestionForComparison(qB.question);
+            const normOptsB = (qB.options || []).map(normalizeOptionForComparison).sort().join("|||");
+
+            if (normQA === normQB && normOptsA === normOptsB) {
+                exactGroup.push(j);
+                visitedExact.add(j);
+            }
+        }
+
+        if (exactGroup.length > 1) {
+            visitedExact.add(i);
+            exactGroups.push(exactGroup);
+        }
+    }
+
+    // 2. Scan for questions with same question text but different options
+    for (let i = 0; i < quizData.length; i++) {
+        if (visitedExact.has(i) || visitedPartial.has(i)) continue;
+        const qA = quizData[i];
+        const normQA = normalizeQuestionForComparison(qA.question);
+        if (!normQA) continue;
+
+        const partialGroup = [i];
+
+        for (let j = i + 1; j < quizData.length; j++) {
+            if (visitedExact.has(j) || visitedPartial.has(j)) continue;
+            const qB = quizData[j];
+            const normQB = normalizeQuestionForComparison(qB.question);
+
+            if (normQA === normQB) {
+                partialGroup.push(j);
+                visitedPartial.add(j);
+            }
+        }
+
+        if (partialGroup.length > 1) {
+            visitedPartial.add(i);
+            partialGroups.push(partialGroup);
+        }
+    }
+
+    // 3. Scan for duplicate options within each question
+    quizData.forEach((q, idx) => {
+        if (!q.options || q.options.length < 2) return;
+        const seen = new Map();
+        const dupes = [];
+        q.options.forEach((opt, oIdx) => {
+            const norm = normalizeOptionForComparison(opt);
+            if (!norm) return;
+            if (seen.has(norm)) {
+                dupes.push({ opt, index: oIdx, originalIndex: seen.get(norm) });
+            } else {
+                seen.set(norm, oIdx);
+            }
+        });
+        if (dupes.length > 0) {
+            optionsInQuestion.push({ qIndex: idx, duplicates: dupes });
+        }
+    });
+
+    return { exactGroups, partialGroups, optionsInQuestion };
+}
+
+function openDuplicatesModal() {
+    closeActionsMenu();
+    if (quizData.length < 2) {
+        customAlert("Quiz needs at least 2 questions to check for duplicates.", "Check Duplicates");
+        return;
+    }
+    renderDuplicatesModalUI();
+    document.getElementById('duplicatesOverlay').classList.remove('hidden');
+    document.getElementById('duplicatesModal').classList.remove('hidden');
+}
+
+function closeDuplicatesModal() {
+    const overlay = document.getElementById('duplicatesOverlay');
+    const modal = document.getElementById('duplicatesModal');
+    if (overlay) overlay.classList.add('hidden');
+    if (modal) modal.classList.add('hidden');
+}
+
+function renderDuplicatesModalUI() {
+    const { exactGroups, partialGroups, optionsInQuestion } = scanForDuplicates();
+    const content = document.getElementById('duplicatesContent');
+    const subtitle = document.getElementById('duplicatesSubtitle');
+    if (!content) return;
+    content.innerHTML = '';
+
+    const totalIssues = exactGroups.length + partialGroups.length + optionsInQuestion.length;
+
+    if (totalIssues === 0) {
+        if (subtitle) subtitle.innerText = "All questions and options in the quiz are unique.";
+        content.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px;">
+                <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); color: var(--green); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px auto;">
+                    <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <h3 style="margin: 0 0 8px 0; color: var(--text);">No Duplicates Found</h3>
+                <p style="color: var(--secondary); margin: 0; font-size: 0.95em;">
+                    All <strong>${quizData.length}</strong> questions have unique questions and options.
+                </p>
+            </div>
+        `;
+        return;
+    }
+
+    if (subtitle) {
+        subtitle.innerText = `Found ${exactGroups.length} exact duplicate group(s), ${partialGroups.length} partial match group(s), and ${optionsInQuestion.length} question(s) with repeated options.`;
+    }
+
+    // Render exact duplicate groups
+    exactGroups.forEach((group, gIdx) => {
+        const groupCard = document.createElement('div');
+        groupCard.className = 'duplicate-group-card';
+
+        let qCardsHtml = '';
+        group.forEach(qIdx => {
+            const q = quizData[qIdx];
+            const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            const optsHtml = (q.options || []).map((opt, oIdx) => {
+                const isCorrect = (q.correctAnswers || []).includes(oIdx);
+                return `<li class="duplicate-opt-item ${isCorrect ? 'is-correct' : ''}"><strong>${letters[oIdx] || oIdx + 1}:</strong> ${decodeHTMLEntities(opt)} ${isCorrect ? '✓' : ''}</li>`;
+            }).join('');
+
+            qCardsHtml += `
+                <div class="duplicate-q-card">
+                    <div class="duplicate-q-top">
+                        <span class="duplicate-q-title">Question ${qIdx + 1}</span>
+                        <span style="font-size: 0.85em; color: var(--secondary);">${(q.options || []).length} Options</span>
+                    </div>
+                    <div class="duplicate-q-text">${decodeHTMLEntities(q.question)}</div>
+                    <ul class="duplicate-opt-list">${optsHtml}</ul>
+                    <div class="duplicate-actions">
+                        <button class="btn-sm btn-sm-outline" onclick="goToQuestionFromDuplicates(${qIdx})">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>
+                            Go to Question
+                        </button>
+                        <button class="btn-sm btn-sm-danger" onclick="deleteQuestionFromDuplicates(${qIdx})">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            Delete This Duplicate
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        groupCard.innerHTML = `
+            <div class="duplicate-group-header">
+                <span>Duplicate Group #${gIdx + 1} (${group.length} questions)</span>
+                <span class="duplicate-badge badge-identical">Exact Duplicate</span>
+            </div>
+            ${qCardsHtml}
+        `;
+        content.appendChild(groupCard);
+    });
+
+    // Render partial duplicate groups (same question text, different options)
+    partialGroups.forEach((group, gIdx) => {
+        const groupCard = document.createElement('div');
+        groupCard.className = 'duplicate-group-card';
+
+        let qCardsHtml = '';
+        group.forEach(qIdx => {
+            const q = quizData[qIdx];
+            const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            const optsHtml = (q.options || []).map((opt, oIdx) => {
+                const isCorrect = (q.correctAnswers || []).includes(oIdx);
+                return `<li class="duplicate-opt-item ${isCorrect ? 'is-correct' : ''}"><strong>${letters[oIdx] || oIdx + 1}:</strong> ${decodeHTMLEntities(opt)} ${isCorrect ? '✓' : ''}</li>`;
+            }).join('');
+
+            qCardsHtml += `
+                <div class="duplicate-q-card">
+                    <div class="duplicate-q-top">
+                        <span class="duplicate-q-title">Question ${qIdx + 1}</span>
+                        <span style="font-size: 0.85em; color: var(--secondary);">${(q.options || []).length} Options</span>
+                    </div>
+                    <div class="duplicate-q-text">${decodeHTMLEntities(q.question)}</div>
+                    <ul class="duplicate-opt-list">${optsHtml}</ul>
+                    <div class="duplicate-actions">
+                        <button class="btn-sm btn-sm-outline" onclick="goToQuestionFromDuplicates(${qIdx})">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>
+                            Go to Question
+                        </button>
+                        <button class="btn-sm btn-sm-danger" onclick="deleteQuestionFromDuplicates(${qIdx})">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            Delete This Question
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        groupCard.innerHTML = `
+            <div class="duplicate-group-header">
+                <span>Same Question Text #${gIdx + 1} (${group.length} questions)</span>
+                <span class="duplicate-badge badge-partial">Different Options</span>
+            </div>
+            ${qCardsHtml}
+        `;
+        content.appendChild(groupCard);
+    });
+
+    // Render questions with duplicate options inside
+    optionsInQuestion.forEach(item => {
+        const q = quizData[item.qIndex];
+        const groupCard = document.createElement('div');
+        groupCard.className = 'duplicate-group-card';
+
+        const repeatedText = item.duplicates.map(d => `"${decodeHTMLEntities(d.opt)}"`).join(', ');
+
+        groupCard.innerHTML = `
+            <div class="duplicate-group-header">
+                <span>Question ${item.qIndex + 1}</span>
+                <span class="duplicate-badge badge-options">Duplicate Options Inside</span>
+            </div>
+            <div class="duplicate-q-card">
+                <div class="duplicate-q-text">${decodeHTMLEntities(q.question)}</div>
+                <div style="font-size: 0.9em; color: var(--red); margin: 8px 0;">
+                    ⚠️ Repeated options: <strong>${repeatedText}</strong>
+                </div>
+                <div class="duplicate-actions">
+                    <button class="btn-sm btn-sm-outline" onclick="goToQuestionFromDuplicates(${item.qIndex})">
+                        Go to Question & Edit
+                    </button>
+                </div>
+            </div>
+        `;
+        content.appendChild(groupCard);
+    });
+}
+
+window.goToQuestionFromDuplicates = (index) => {
+    closeDuplicatesModal();
+    goToQuestion(index);
+};
+
+window.deleteQuestionFromDuplicates = async (index) => {
+    const confirmed = await customConfirm(
+        `Are you sure you want to delete Question ${index + 1}?`,
+        "Delete Duplicate",
+        "Delete",
+        "btn-red"
+    );
+    if (!confirmed) return;
+
+    quizData.splice(index, 1);
+    if (quizData.length === 0) {
+        closeDuplicatesModal();
+        unlinkDrive();
+        return;
+    }
+    if (curIdx >= quizData.length) curIdx = Math.max(0, quizData.length - 1);
+    syncStateToDrive();
+    renderSidebar(true);
+    renderQ();
+    renderDuplicatesModalUI();
+};
+
 async function showReuploadScreen() {
     const confirmed = await customConfirm("Warning: Pasting new JSON will overwrite your current cloud file and reset all progress. Do you wish to continue?", "Overwrite Warning", "Continue", "btn-red");
     if(!confirmed) return;
@@ -1263,6 +1626,7 @@ async function deleteQuestion() {
     const confirmed = await customConfirm("Are you sure you want to delete this question?", "Delete Question", "Yes", "btn-red");
     if (!confirmed) return;
     
+    isNewQuestionDraft = false;
     quizData.splice(curIdx, 1);
     isEditingQuestion = false;
     
@@ -1278,9 +1642,62 @@ async function deleteQuestion() {
     renderQ();
 }
 
+async function addNewQuestion() {
+    closeActionsMenu();
+    if (isEditingQuestion) {
+        const confirmed = await customConfirm("You have unsaved edits on the current question. Discard changes and create a new question?", "Unsaved Edits", "Discard & Continue", "btn-red");
+        if (!confirmed) return;
+        if (isNewQuestionDraft) {
+            quizData.splice(curIdx, 1);
+            isNewQuestionDraft = false;
+        }
+        isEditingQuestion = false;
+    }
+
+    const newQ = {
+        question: "",
+        options: ["", "", "", ""],
+        correctAnswers: [],
+        userAnswer: null,
+        status: null,
+        marked: false,
+        explanation: ""
+    };
+
+    quizData.push(newQ);
+    curIdx = quizData.length - 1;
+    isEditingQuestion = true;
+    isNewQuestionDraft = true;
+    tempEditOptions = ["", "", "", ""];
+    tempEditAnswers = [];
+
+    renderSidebar(true);
+    renderQ();
+
+    setTimeout(() => {
+        const input = document.getElementById('editQTextInput');
+        if (input) {
+            input.focus();
+            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }, 80);
+}
+
+function cancelEditQuestion() {
+    if (isNewQuestionDraft) {
+        quizData.splice(curIdx, 1);
+        isNewQuestionDraft = false;
+        if (curIdx >= quizData.length) curIdx = Math.max(0, quizData.length - 1);
+    }
+    isEditingQuestion = false;
+    renderSidebar(true);
+    renderQ();
+}
+
 function startEditQuestion() {
     const q = quizData[curIdx];
     isEditingQuestion = true;
+    isNewQuestionDraft = false;
     tempEditOptions = [...(q.options || [])];
     tempEditAnswers = [...(q.correctAnswers || [])];
     renderQ();
@@ -1317,11 +1734,17 @@ function renderEditOptionsUI() {
 
 async function saveEditedData() {
     const q = quizData[curIdx];
-    q.question = document.getElementById('editQTextInput').value.trim();
+    const qText = document.getElementById('editQTextInput').value.trim();
+    if (!qText) {
+        await customAlert("Please enter question text before saving.", "Question Text Required");
+        return;
+    }
+    q.question = qText;
     q.options = tempEditOptions.map(o => o.trim());
     q.correctAnswers = [...tempEditAnswers];
     if (q.options.length === 0) { await customAlert("Please add at least one option.", "Missing Options"); return; }
 
+    isNewQuestionDraft = false;
     q.userAnswer = null; q.status = null; isEditingQuestion = false;
     syncStateToDrive(); renderQ(); renderSidebar(false);
 }

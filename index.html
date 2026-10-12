@@ -57,6 +57,22 @@
     <div id="notesContent" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px; font-size: 1.05em; line-height: 1.7; white-space: pre-wrap;"></div>
 </div>
 
+<!-- Duplicates Modal -->
+<div id="duplicatesOverlay" class="overlay hidden" style="z-index: 2000;"></div>
+<div id="duplicatesModal" class="card review-modal hidden" style="z-index: 2001; max-width: 850px;">
+    <button id="closeDuplicatesBtn" class="close-review-btn" title="Close Duplicates Modal">&times;</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; padding-right: 40px; margin-bottom: 5px;">
+        <h2 style="margin: 0; color: var(--text);">Check Duplicates</h2>
+        <button id="recheckDuplicatesBtn" class="action-btn" style="background: var(--indigo); padding: 8px 16px; font-size: 14px; min-width: auto; flex: none;">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-10.45l5.25 4.88"></path>
+            </svg> Re-check
+        </button>
+    </div>
+    <p id="duplicatesSubtitle" style="color: var(--secondary); margin-top: 0;">Scan quiz questions and options for duplicate entries.</p>
+    <div id="duplicatesContent" style="display: flex; flex-direction: column; gap: 15px; margin-top: 15px;"></div>
+</div>
+
 <!-- API Settings Modal -->
 <div id="apiSettingsOverlay" class="overlay hidden" style="z-index: 2000;"></div>
 <div id="apiSettingsModal" class="card review-modal hidden" style="z-index: 2001; max-width: 450px; top: 15%; padding: 30px;">
@@ -196,29 +212,92 @@
 
     <!-- RIGHT COLUMN -->
     <div class="right-column">
-        <!-- Action Buttons Grid -->
-        <div class="card actions-card">
-            <div class="actions-grid">
-                <button id="checkAllBtn" class="grid-btn btn-indigo">
-                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M9.5 2L12 8.5 18.5 11 12 13.5 9.5 20 7 13.5 0.5 11 7 8.5z"></path><path d="M19 2l1.5 3.5 3.5 1.5-3.5 1.5L19 12l-1.5-3.5L14 7l3.5-1.5z"></path>
-                    </svg> Check All
+        <!-- Action Toolbar -->
+        <div class="card toolbar-card">
+            <div class="toolbar-actions">
+                <button id="addQBtn" class="toolbar-btn btn-add" title="Add New Question">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span class="btn-text">New Question</span>
                 </button>
-                <button id="notesBtn" class="grid-btn btn-purple">
-                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> Notes
+                <button id="checkDuplicatesBtn" class="toolbar-btn btn-duplicates" title="Check for Duplicate Questions">
+                    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span class="btn-text">Check Duplicates</span>
                 </button>
-                <button id="reuploadBtn" class="grid-btn btn-blue">
-                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> New JSON
-                </button>
-                <button id="exportJsonBtn" class="grid-btn btn-teal">
-                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy JSON
-                </button>
-                <button id="restartQuizBtn" class="grid-btn btn-yellow">
-                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg> Restart Quiz
-                </button>
-                <button id="clearCacheBtn" class="grid-btn btn-red">
-                    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg> Unlink Services
-                </button>
+                
+                <div class="toolbar-spacer"></div>
+
+                <div class="menu-dropdown-container">
+                    <button id="menuDropdownBtn" class="toolbar-btn btn-menu" aria-haspopup="true" aria-expanded="false" title="Menu Actions">
+                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="4" y1="12" x2="20" y2="12"></line>
+                            <line x1="4" y1="6" x2="20" y2="6"></line>
+                            <line x1="4" y1="18" x2="20" y2="18"></line>
+                        </svg>
+                        <span class="btn-text">Actions</span>
+                        <svg class="dropdown-chevron" viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </button>
+                    <div id="actionsDropdownMenu" class="actions-dropdown-menu hidden" role="menu">
+                        <div class="dropdown-section-title">Quiz Management</div>
+                        <button id="menuAddQBtn" class="dropdown-item" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span>Add New Question</span>
+                        </button>
+                        <button id="menuCheckDuplicatesBtn" class="dropdown-item" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                            <span>Check Duplicates</span>
+                        </button>
+                        <button id="exportJsonBtn" class="dropdown-item" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span>Copy JSON</span>
+                        </button>
+                        <button id="reuploadBtn" class="dropdown-item" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                            <span>New JSON</span>
+                        </button>
+                        <button id="restartQuizBtn" class="dropdown-item" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+                            <span>Restart Quiz</span>
+                        </button>
+
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-section-title">AI Assistance</div>
+                        <button id="checkAllBtn" class="dropdown-item" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M9.5 2L12 8.5 18.5 11 12 13.5 9.5 20 7 13.5 0.5 11 7 8.5z"></path><path d="M19 2l1.5 3.5 3.5 1.5-3.5 1.5L19 12l-1.5-3.5L14 7l3.5-1.5z"></path>
+                            </svg>
+                            <span>Check All (AI)</span>
+                        </button>
+                        <button id="notesBtn" class="dropdown-item" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            <span>Study Notes</span>
+                        </button>
+
+                        <div class="dropdown-divider"></div>
+                        <div class="dropdown-section-title">Settings & Danger</div>
+                        <button id="menuApiSettingsBtn" class="dropdown-item" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+                            <span>API Settings</span>
+                        </button>
+                        <button id="clearCacheBtn" class="dropdown-item dropdown-item-danger" role="menuitem">
+                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                            <span>Unlink Services</span>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -228,6 +307,12 @@
             <div class="q-meta">
                 <div id="qMetaText" class="meta-left">Score: 0 &middot; Question: 1</div>
                 <div class="meta-right">
+                    <button id="addQMetaBtn" class="icon-btn" title="Add New Question">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
                     <button id="editPenBtn" class="icon-btn" title="Edit Question & Options">
                         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                     </button>
